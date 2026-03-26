@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 import sys
 from pathlib import Path
@@ -42,6 +42,10 @@ def get_postgres_dsn() -> str:
         f"user={cfg['user']} "
         f"password={cfg['password']}"
     )
+
+
+def get_api_base_url() -> str:
+    return os.getenv("API_BASE_URL", "http://localhost:8000").rstrip("/")
 
 
 def get_attachments_dir() -> str:

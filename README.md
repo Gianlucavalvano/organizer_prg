@@ -59,3 +59,17 @@ flet build windows -v
 ```
 
 For more details on building Windows package, refer to the [Windows Packaging Guide](https://docs.flet.dev/publish/windows/).
+## Run FastAPI backend
+
+From project root:
+
+```
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Health endpoints:
+
+```
+http://localhost:8000/health
+http://localhost:8000/health/db
+```
