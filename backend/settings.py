@@ -1,4 +1,5 @@
-import os
+﻿import os
+from pathlib import Path
 
 
 def get_postgres_config() -> dict:
@@ -28,3 +29,15 @@ def get_api_secret_key() -> str:
 
 def get_access_token_minutes() -> int:
     return int(os.getenv("API_ACCESS_TOKEN_MINUTES", "120"))
+
+
+def get_project_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+def get_attachments_storage_root() -> Path:
+    raw = os.getenv("ATTACHMENTS_STORAGE_ROOT", "")
+    if raw:
+        p = Path(raw).expanduser()
+        return p if p.is_absolute() else (get_project_root() / p)
+    return get_project_root() / "storage" / "allegati"
