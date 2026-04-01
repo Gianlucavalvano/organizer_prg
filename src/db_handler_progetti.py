@@ -1,4 +1,4 @@
-import psycopg
+﻿import psycopg
 from datetime import datetime
 import os
 import shutil
@@ -107,7 +107,7 @@ def owner_filter_sql(alias: str = "", column: str = "owner_user_id", leading_and
 # FUNZIONE DI SICUREZZA (AGGIUNGE COLONNE SE MANCANO)
 # --------------------------------------------------------
 def verifica_e_aggiorna_colonna(tabella, colonna, tipo_dati):
-    """Controlla se una colonna c'è. Se manca, la aggiunge senza cancellare i dati."""
+    """Controlla se una colonna c'Ã¨. Se manca, la aggiunge senza cancellare i dati."""
     conn = connetti()
     c = conn.cursor()
     try:
@@ -305,6 +305,19 @@ def inizializza_db():
 
     c.execute(
         """
+        CREATE TABLE IF NOT EXISTS utenti_applicazioni (
+            id_utente INTEGER NOT NULL,
+            id_app INTEGER NOT NULL,
+            attivo BOOLEAN NOT NULL DEFAULT TRUE,
+            PRIMARY KEY (id_utente, id_app),
+            FOREIGN KEY (id_utente) REFERENCES utenti(id_utente) ON DELETE CASCADE,
+            FOREIGN KEY (id_app) REFERENCES applicazioni(id_app) ON DELETE CASCADE
+        )
+        """
+    )
+
+    c.execute(
+        """
         INSERT INTO tab_stati (id_stato, nome_stato) VALUES
             (1, 'Da fare'),
             (2, 'In corso'),
@@ -338,6 +351,17 @@ def inizializza_db():
         INSERT INTO applicazioni (codice, nome, route, attiva) VALUES
             ('GESTIONE', 'Gestione Progetti', '/gestione', TRUE),
             ('AS400', 'AS400', '/as400', TRUE)
+        ON CONFLICT (codice)
+        DO UPDATE SET
+            nome = EXCLUDED.nome,
+            route = EXCLUDED.route,
+            attiva = EXCLUDED.attiva
+        """
+    )
+    c.execute(
+        """
+        INSERT INTO applicazioni (codice, nome, route, attiva) VALUES
+            ('ADMIN_MENU', 'Administrator Menu', '/admin', TRUE)
         ON CONFLICT (codice)
         DO UPDATE SET
             nome = EXCLUDED.nome,
@@ -941,7 +965,7 @@ def crea_task_da_nota(id_nota, id_progetto):
         titolo = (row[0] or "").strip()
         if not titolo:
             conn.close()
-            return False, None, "La nota è vuota."
+            return False, None, "La nota Ã¨ vuota."
 
         data_ins = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         c.execute(
@@ -1062,7 +1086,7 @@ def get_allegato_abs_path(id_allegato):
     rel = row[0] or ""
     nome_storage = row[1] or ""
 
-    # 1) Path assoluto già salvato nel DB.
+    # 1) Path assoluto giÃ  salvato nel DB.
     if os.path.isabs(rel) and os.path.exists(rel):
         return rel
 
@@ -1356,7 +1380,7 @@ def leggi_risorse_attive():
     inizializza_db()
     conn = connetti()
     c = conn.cursor()
-     # Nota: servono 3 colonne perché la tabella risorse ne restituisce 3
+     # Nota: servono 3 colonne perchÃ© la tabella risorse ne restituisce 3
     query = """
         SELECT id_risorsa, nome, cognome, email FROM risorse WHERE attivo = 1
         ORDER BY 3, 2
@@ -1569,7 +1593,7 @@ def leggi_dati_stampa_lista():
 
 def leggi_attivita_scadute():
     """
-    Elenca attività scadute:
+    Elenca attivitÃ  scadute:
     - Progetti con data1_checkpoint < data odierna.
     - Task con data_fine < data odierna e non completati.
     Output tuple:
@@ -1749,7 +1773,7 @@ def hash_password(password: str) -> str:
 def verifica_password(password: str, stored_hash: str) -> bool:
     """
     Verifica hash PBKDF2.
-    Compatibilità legacy: se hash non in formato noto, confronto diretto.
+    CompatibilitÃ  legacy: se hash non in formato noto, confronto diretto.
     """
     if not stored_hash:
         return False
@@ -1910,4 +1934,80 @@ def reset_password_utente(id_utente: int, nuova_password: str):
     finally:
         conn.close()
 
+
+
+def leggi_moduli_disponibili():
+    inizializza_db()
+    conn = connetti()
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT id_app, codice, nome, route, attiva
+        FROM applicazioni
+        ORDER BY nome ASC
+        """
+    )
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+
+def leggi_moduli_utente(id_utente: int):
+    inizializza_db()
+    conn = connetti()
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT a.codice
+        FROM utenti_applicazioni ua
+        JOIN applicazioni a ON a.id_app = ua.id_app
+        WHERE ua.id_utente = ?
+          AND ua.attivo = TRUE
+        ORDER BY a.codice ASC
+        """,
+        (id_utente,),
+    )
+    rows = [r[0] for r in c.fetchall()]
+    conn.close()
+    return rows
+
+
+def imposta_moduli_utente(id_utente: int, codici_modulo: list[str]):
+    inizializza_db()
+    conn = connetti()
+    c = conn.cursor()
+    try:
+        normalized = sorted({(x or "").strip().upper() for x in (codici_modulo or []) if (x or "").strip()})
+
+        c.execute("SELECT id_utente FROM utenti WHERE id_utente = ? LIMIT 1", (id_utente,))
+        if c.fetchone() is None:
+            conn.rollback()
+            return False, "Utente non trovato"
+
+        c.execute("SELECT codice, id_app FROM applicazioni")
+        m = {str(r[0]).upper(): int(r[1]) for r in c.fetchall()}
+        unknown = [x for x in normalized if x not in m]
+        if unknown:
+            conn.rollback()
+            return False, f"Codici modulo non validi: {', '.join(unknown)}"
+
+        c.execute("DELETE FROM utenti_applicazioni WHERE id_utente = ?", (id_utente,))
+        for code in normalized:
+            c.execute(
+                """
+                INSERT INTO utenti_applicazioni (id_utente, id_app, attivo)
+                VALUES (?, ?, TRUE)
+                ON CONFLICT (id_utente, id_app)
+                DO UPDATE SET attivo = EXCLUDED.attivo
+                """,
+                (id_utente, m[code]),
+            )
+
+        conn.commit()
+        return True, "Abilitazioni aggiornate"
+    except Exception as ex:
+        conn.rollback()
+        return False, f"Errore salvataggio abilitazioni: {ex}"
+    finally:
+        conn.close()
 

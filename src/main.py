@@ -6,6 +6,7 @@ import httpx
 import db_handler_progetti as db
 import gestione_progetti
 import sezione_as400
+import administrator_menu
 from config import get_api_base_url
 
 PERM_APP_GESTIONE_OPEN = "APP_GESTIONE_OPEN"
@@ -33,6 +34,9 @@ def main(page: ft.Page):
     orig_imposta_ruolo_utente = db.imposta_ruolo_utente
     orig_imposta_attivo_utente = db.imposta_attivo_utente
     orig_reset_password_utente = db.reset_password_utente
+    orig_leggi_moduli_disponibili = db.leggi_moduli_disponibili
+    orig_leggi_moduli_utente = db.leggi_moduli_utente
+    orig_imposta_moduli_utente = db.imposta_moduli_utente
 
     orig_leggi_progetti_archiviati = db.leggi_progetti_archiviati
     orig_ripristina_progetto_db = db.ripristina_progetto_db
@@ -293,6 +297,61 @@ def main(page: ft.Page):
             except Exception:
                 msg = res.text
             return False, f"Errore API reset password: {msg}"
+        except Exception as ex:
+            return False, f"Backend non raggiungibile: {ex}"
+
+    def _api_leggi_moduli_disponibili():
+        if not current_token:
+            return orig_leggi_moduli_disponibili()
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                res = client.get(f"{api_base_url}/admin/moduli/catalogo", headers=_api_headers())
+            if res.status_code != 200:
+                return orig_leggi_moduli_disponibili()
+            rows = res.json()
+            return [
+                (
+                    r.get("id_app"),
+                    r.get("codice") or "",
+                    r.get("nome") or "",
+                    r.get("route") or "",
+                    True if r.get("attiva") else False,
+                )
+                for r in rows
+            ]
+        except Exception:
+            return orig_leggi_moduli_disponibili()
+
+    def _api_leggi_moduli_utente(id_utente):
+        if not current_token:
+            return orig_leggi_moduli_utente(id_utente)
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                res = client.get(f"{api_base_url}/admin/moduli/utenti/{int(id_utente)}", headers=_api_headers())
+            if res.status_code != 200:
+                return orig_leggi_moduli_utente(id_utente)
+            body = res.json() or {}
+            return body.get("moduli_diretti") or []
+        except Exception:
+            return orig_leggi_moduli_utente(id_utente)
+
+    def _api_imposta_moduli_utente(id_utente, codici_modulo):
+        if not current_token:
+            return orig_imposta_moduli_utente(id_utente, codici_modulo)
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                res = client.put(
+                    f"{api_base_url}/admin/moduli/utenti/{int(id_utente)}",
+                    headers=_api_headers(),
+                    json={"codici": list(codici_modulo or [])},
+                )
+            if res.status_code in (200, 201):
+                return True, "Abilitazioni aggiornate"
+            try:
+                msg = res.json().get("detail")
+            except Exception:
+                msg = res.text
+            return False, f"Errore API abilitazioni: {msg}"
         except Exception as ex:
             return False, f"Backend non raggiungibile: {ex}"
 
@@ -783,6 +842,9 @@ def main(page: ft.Page):
         db.imposta_ruolo_utente = _api_imposta_ruolo_utente
         db.imposta_attivo_utente = _api_imposta_attivo_utente
         db.reset_password_utente = _api_reset_password_utente
+        db.leggi_moduli_disponibili = _api_leggi_moduli_disponibili
+        db.leggi_moduli_utente = _api_leggi_moduli_utente
+        db.imposta_moduli_utente = _api_imposta_moduli_utente
 
         db.leggi_progetti_archiviati = _api_leggi_progetti_archiviati
         db.ripristina_progetto_db = _api_ripristina_progetto_db
@@ -825,6 +887,9 @@ def main(page: ft.Page):
         db.imposta_ruolo_utente = orig_imposta_ruolo_utente
         db.imposta_attivo_utente = orig_imposta_attivo_utente
         db.reset_password_utente = orig_reset_password_utente
+        db.leggi_moduli_disponibili = orig_leggi_moduli_disponibili
+        db.leggi_moduli_utente = orig_leggi_moduli_utente
+        db.imposta_moduli_utente = orig_imposta_moduli_utente
 
         db.leggi_progetti_archiviati = orig_leggi_progetti_archiviati
         db.ripristina_progetto_db = orig_ripristina_progetto_db
@@ -939,6 +1004,26 @@ def main(page: ft.Page):
             page.snack_bar.open = True
             page.update()
 
+    def apri_administrator_menu(_):
+        nonlocal current_user
+        if not current_user:
+            render_login()
+            return
+        ruolo = (current_user.get("ruolo") or "").upper()
+        ruoli = [str(r).upper() for r in (current_user.get("ruoli") or [])]
+        if ruolo != "ADMIN" and "ADMIN" not in ruoli:
+            page.snack_bar = ft.SnackBar(ft.Text("Accesso negato ad Administrator Menu"), bgcolor=ft.Colors.RED_700)
+            page.snack_bar.open = True
+            page.update()
+            return
+        try:
+            nuova_pagina = administrator_menu.crea_vista_administrator_menu(page, current_user=current_user)
+            page.views.append(nuova_pagina)
+            page.update()
+        except Exception as ex:
+            page.snack_bar = ft.SnackBar(ft.Text(f"Errore apertura Administrator Menu: {ex}"), bgcolor=ft.Colors.RED_700)
+            page.snack_bar.open = True
+            page.update()
     def render_menu():
         nonlocal current_user, current_apps
         if not current_user:
@@ -957,6 +1042,11 @@ def main(page: ft.Page):
             bottoni.append(ft.FilledButton("AS400", icon=ft.Icons.COMPUTER, width=280, on_click=apri_finestra_as400))
         if "GESTIONE" in codes:
             bottoni.append(ft.FilledButton("Gestione Progetti", icon=ft.Icons.DASHBOARD_CUSTOMIZE, width=280, on_click=apri_finestra_progetti))
+
+        ruolo = (current_user.get("ruolo") or "").upper()
+        ruoli = [str(r).upper() for r in (current_user.get("ruoli") or [])]
+        if ruolo == "ADMIN" or "ADMIN" in ruoli:
+            bottoni.append(ft.OutlinedButton("Administrator Menu", icon=ft.Icons.ADMIN_PANEL_SETTINGS, width=280, on_click=apri_administrator_menu))
 
         if not bottoni:
             bottoni.append(ft.Text("Nessuna applicazione assegnata a questo utente.", color=ft.Colors.RED_700))
@@ -998,6 +1088,10 @@ def main(page: ft.Page):
 
 
 ft.run(main)
+
+
+
+
 
 
 
