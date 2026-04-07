@@ -1,6 +1,6 @@
 import flet as ft
 
-from config import (
+from organizer_ict.config import (
     DEFAULT_SETTINGS,
     get_firma_path,
     get_logo_path,
@@ -134,3 +134,4 @@ def get_contenuto_setting(page: ft.Page):
             txt_status,
         ],
     )
+

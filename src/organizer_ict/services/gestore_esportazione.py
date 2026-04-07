@@ -3,8 +3,8 @@ import os
 
 import flet as ft
 from openpyxl import Workbook
-import db_handler_progetti as database
-from config import get_project_root
+from organizer_ict.db import handler as database
+from organizer_ict.config import get_project_root
 
 
 async def esporta_struttura_excel(page: ft.Page):
@@ -92,3 +92,4 @@ async def esporta_struttura_excel(page: ft.Page):
                 conn.close()
         except Exception:
             pass
+

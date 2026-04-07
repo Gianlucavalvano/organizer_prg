@@ -1,6 +1,6 @@
 # FILE: src/vista_anagrafica.py
 import flet as ft
-import db_handler_progetti as db
+from organizer_ict.db import handler as db
 
 def get_contenuto_anagrafica(page: ft.Page):
     

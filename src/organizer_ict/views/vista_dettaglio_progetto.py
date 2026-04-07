@@ -4,9 +4,9 @@ import os
 
 import flet as ft
 
-import db_handler_progetti as db
-import stampa_api
-from ui_progetti_helpers import crea_menu_risorsa, formatta_data, get_icona_tipo
+from organizer_ict.db import handler as db
+from organizer_ict.services import stampa_api
+from organizer_ict.ui_helpers import crea_menu_risorsa, formatta_data, get_icona_tipo
 
 
 def _leggi_progetto_attivo(id_progetto):
@@ -642,3 +642,4 @@ def crea_vista_dettaglio_progetto(page: ft.Page, id_progetto: int, id_task_apert
         page.run_task(_apri_task_diretto)
 
     return view
+

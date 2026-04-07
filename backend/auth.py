@@ -1,5 +1,3 @@
-import hashlib
-import hmac
 from dataclasses import dataclass
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -8,7 +6,12 @@ from psycopg import Connection
 from pydantic import BaseModel
 
 from backend.db import get_db_connection
-from backend.security import create_access_token, decode_and_verify_token
+from backend.decorators import (
+    decode_token,
+    require_password_match,
+    with_api_logging,
+)
+from backend.security import create_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -32,24 +35,6 @@ class AuthUser:
     ruolo: str
     ruoli: list[str]
     permessi: list[str]
-
-
-def _verify_password(password: str, stored_hash: str) -> bool:
-    if not stored_hash:
-        return False
-    if stored_hash.startswith("pbkdf2_sha256$"):
-        try:
-            _, it_s, salt_hex, digest_hex = stored_hash.split("$", 3)
-            iterations = int(it_s)
-            salt = bytes.fromhex(salt_hex)
-            expected = bytes.fromhex(digest_hex)
-            current = hashlib.pbkdf2_hmac(
-                "sha256", (password or "").encode("utf-8"), salt, iterations
-            )
-            return hmac.compare_digest(current, expected)
-        except Exception:
-            return False
-    return (password or "") == stored_hash
 
 
 def _list_roles(conn: Connection, user_id: int) -> list[str]:
@@ -137,20 +122,14 @@ def _load_active_user_by_id(conn: Connection, user_id: int):
     return row
 
 
+@decode_token(credentials_kw="credentials", payload_kw="token_payload")
 def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     conn: Connection = Depends(get_db_connection),
+    token_payload: dict | None = None,
 ) -> AuthUser:
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing bearer token",
-        )
     try:
-        payload = decode_and_verify_token(credentials.credentials)
-        if payload.get("type") != "access":
-            raise ValueError("Invalid token type")
-        user_id = int(payload.get("sub"))
+        user_id = int((token_payload or {}).get("sub"))
     except Exception as ex:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -166,7 +145,13 @@ def get_current_user(
     return _build_auth_user(conn, row)
 
 
+@require_password_match(plain_kw="plain_password", stored_kw="stored_hash")
+def _assert_login_password(*, plain_password: str, stored_hash: str):
+    return True
+
+
 @router.post("/login", response_model=LoginResponse)
+@with_api_logging("auth.login")
 def login(payload: LoginRequest, conn: Connection = Depends(get_db_connection)):
     row = _load_active_user_by_username(conn, payload.username)
     if row is None:
@@ -174,11 +159,8 @@ def login(payload: LoginRequest, conn: Connection = Depends(get_db_connection)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenziali non valide",
         )
-    if not _verify_password(payload.password, row[2]):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenziali non valide",
-        )
+
+    _assert_login_password(plain_password=payload.password, stored_hash=row[2])
 
     user = _build_auth_user(conn, row)
     token = create_access_token(
@@ -204,6 +186,7 @@ def login(payload: LoginRequest, conn: Connection = Depends(get_db_connection)):
 
 
 @router.get("/me")
+@with_api_logging("auth.me")
 def me(user: AuthUser = Depends(get_current_user)):
     return {
         "id_utente": user.id_utente,
@@ -212,4 +195,3 @@ def me(user: AuthUser = Depends(get_current_user)):
         "ruoli": user.ruoli,
         "permessi": user.permessi,
     }
-

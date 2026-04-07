@@ -1,6 +1,6 @@
 # FILE: src/vista_ruoli.py
 import flet as ft
-import db_handler_progetti as db
+from organizer_ict.db import handler as db
 
 def get_contenuto_ruoli(page: ft.Page):
     

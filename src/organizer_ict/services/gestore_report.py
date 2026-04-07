@@ -6,10 +6,10 @@ from reportlab.lib.units import cm
 from reportlab.lib.enums import TA_CENTER
 from datetime import datetime
 import io
-import db_handler_progetti as database
+from organizer_ict.db import handler as database
 import os
-import stampa_api
-from config import get_firma_path, get_logo_path
+from . import stampa_api
+from organizer_ict.config import get_firma_path, get_logo_path
 
 # --- CLASSE GRAFICA PER LA BARRA DI AVANZAMENTO ---
 class ProgressBar(Flowable):
@@ -232,3 +232,5 @@ def genera_pdf_progetto(pid, nome_progetto, percorso_file_temporaneo=None):
         stampa_api.salva_pdf_dialog(pdf_bytes, nome_file_default, "Salva Report Progetto")
     except Exception as e:
         print(f"Errore: {e}")
+
+

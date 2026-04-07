@@ -6,10 +6,10 @@ from reportlab.lib.units import cm
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from datetime import datetime
 import io
-import db_handler_progetti as database
+from organizer_ict.db import handler as database
 import os
-import stampa_api
-from config import get_logo_path
+from . import stampa_api
+from organizer_ict.config import get_logo_path
 
 # --- UTILITA' ---
 def formatta_data(data_str):
@@ -159,3 +159,4 @@ def genera_e_salva_lista():
         stampa_api.salva_pdf_dialog(pdf_bytes, nome_default, "Salva Lista Progetti")
     except Exception as e:
         print(f"Errore: {e}")
+

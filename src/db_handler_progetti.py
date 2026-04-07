@@ -1,4 +1,4 @@
-﻿import psycopg
+import psycopg
 from datetime import datetime
 import os
 import shutil
@@ -107,7 +107,7 @@ def owner_filter_sql(alias: str = "", column: str = "owner_user_id", leading_and
 # FUNZIONE DI SICUREZZA (AGGIUNGE COLONNE SE MANCANO)
 # --------------------------------------------------------
 def verifica_e_aggiorna_colonna(tabella, colonna, tipo_dati):
-    """Controlla se una colonna c'Ã¨. Se manca, la aggiunge senza cancellare i dati."""
+    """Controlla se una colonna c'è. Se manca, la aggiunge senza cancellare i dati."""
     conn = connetti()
     c = conn.cursor()
     try:
@@ -350,7 +350,8 @@ def inizializza_db():
         """
         INSERT INTO applicazioni (codice, nome, route, attiva) VALUES
             ('GESTIONE', 'Gestione Progetti', '/gestione', TRUE),
-            ('AS400', 'AS400', '/as400', TRUE)
+            ('AS400', 'AS400', '/as400', TRUE),
+            ('ORE_PROGETTO', 'Ore Progetto', '/ore-progetto', TRUE)
         ON CONFLICT (codice)
         DO UPDATE SET
             nome = EXCLUDED.nome,
@@ -965,7 +966,7 @@ def crea_task_da_nota(id_nota, id_progetto):
         titolo = (row[0] or "").strip()
         if not titolo:
             conn.close()
-            return False, None, "La nota Ã¨ vuota."
+            return False, None, "La nota è vuota."
 
         data_ins = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         c.execute(
@@ -1086,7 +1087,7 @@ def get_allegato_abs_path(id_allegato):
     rel = row[0] or ""
     nome_storage = row[1] or ""
 
-    # 1) Path assoluto giÃ  salvato nel DB.
+    # 1) Path assoluto già salvato nel DB.
     if os.path.isabs(rel) and os.path.exists(rel):
         return rel
 
@@ -1380,7 +1381,7 @@ def leggi_risorse_attive():
     inizializza_db()
     conn = connetti()
     c = conn.cursor()
-     # Nota: servono 3 colonne perchÃ© la tabella risorse ne restituisce 3
+     # Nota: servono 3 colonne perché la tabella risorse ne restituisce 3
     query = """
         SELECT id_risorsa, nome, cognome, email FROM risorse WHERE attivo = 1
         ORDER BY 3, 2
@@ -1593,7 +1594,7 @@ def leggi_dati_stampa_lista():
 
 def leggi_attivita_scadute():
     """
-    Elenca attivitÃ  scadute:
+    Elenca attività scadute:
     - Progetti con data1_checkpoint < data odierna.
     - Task con data_fine < data odierna e non completati.
     Output tuple:
@@ -1773,7 +1774,7 @@ def hash_password(password: str) -> str:
 def verifica_password(password: str, stored_hash: str) -> bool:
     """
     Verifica hash PBKDF2.
-    CompatibilitÃ  legacy: se hash non in formato noto, confronto diretto.
+    Compatibilità legacy: se hash non in formato noto, confronto diretto.
     """
     if not stored_hash:
         return False
@@ -2010,4 +2011,5 @@ def imposta_moduli_utente(id_utente: int, codici_modulo: list[str]):
         return False, f"Errore salvataggio abilitazioni: {ex}"
     finally:
         conn.close()
+
 

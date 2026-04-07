@@ -7,9 +7,9 @@ from reportlab.graphics.charts.piecharts import Pie
 from reportlab.graphics import renderPDF
 from datetime import datetime
 import io
-import db_handler_progetti as database
+from organizer_ict.db import handler as database
 import os
-import stampa_api
+from . import stampa_api
 
 
 # --- CONFIGURAZIONE COORDINATE CARTINA ---
@@ -179,3 +179,4 @@ if __name__ == "__main__":
     print("Avvio generazione Dashboard di test...")
     genera_dashboard()
     print("Fatto! Controlla se si è aperta la finestra di salvataggio.")
+

@@ -10,8 +10,8 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.lib import colors
 import base64
-import gestore_report
-import db_handler_progetti as database
+from . import gestore_report
+from organizer_ict.db import handler as database
 
 def invia_mail_dettaglio_progetto(page: ft.Page, id_task):
     try:
@@ -280,3 +280,4 @@ def invia_mail_pdf_stato_progetto(page: ft.Page, id_task):
 
     except Exception as e:
         print(f"ERRORE invia_mail_pdf_stato_progetto: {e}")
+

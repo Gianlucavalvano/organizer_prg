@@ -10,7 +10,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.lib import colors
 import base64
-import db_handler_progetti as database # Importiamo il "gestore"
+from organizer_ict.db import handler as database # Importiamo il "gestore"
 
 def invia_mail_riepilogo_globale(page: ft.Page, id_task):
     try:
@@ -172,3 +172,4 @@ def invia_mail_riepilogo_globale(page: ft.Page, id_task):
 
     except Exception as e:
         print(f"Errore Globale: {e}")
+

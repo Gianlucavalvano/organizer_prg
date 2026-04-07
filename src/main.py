@@ -1,10 +1,10 @@
-﻿import os
+import os
 import tempfile
 import flet as ft
 import httpx
 
 import db_handler_progetti as db
-import gestione_progetti
+import organizer_ict
 import sezione_as400
 import administrator_menu
 from config import get_api_base_url
@@ -965,9 +965,8 @@ def main(page: ft.Page):
                 ),
             )
         )
-
     def apri_finestra_progetti(_):
-        nonlocal current_user
+        nonlocal current_user, current_apps
         if not current_user:
             render_login()
             return
@@ -977,14 +976,15 @@ def main(page: ft.Page):
             page.update()
             return
         try:
-            nuova_pagina = gestione_progetti.crea_vista_gestione_progetti(page, current_user=current_user)
+            current_user_with_apps = dict(current_user)
+            current_user_with_apps["apps"] = current_apps
+            nuova_pagina = organizer_ict.crea_vista_organizer_ict(page, current_user=current_user_with_apps)
             page.views.append(nuova_pagina)
             page.update()
         except Exception as ex:
             page.snack_bar = ft.SnackBar(ft.Text(f"Errore apertura Gestione Progetti: {ex}"), bgcolor=ft.Colors.RED_700)
             page.snack_bar.open = True
             page.update()
-
     def apri_finestra_as400(_):
         nonlocal current_user
         if not current_user:
@@ -1041,7 +1041,7 @@ def main(page: ft.Page):
         if "AS400" in codes:
             bottoni.append(ft.FilledButton("AS400", icon=ft.Icons.COMPUTER, width=280, on_click=apri_finestra_as400))
         if "GESTIONE" in codes:
-            bottoni.append(ft.FilledButton("Gestione Progetti", icon=ft.Icons.DASHBOARD_CUSTOMIZE, width=280, on_click=apri_finestra_progetti))
+            bottoni.append(ft.FilledButton("Organizer ICT", icon=ft.Icons.DASHBOARD_CUSTOMIZE, width=280, on_click=apri_finestra_progetti))
 
         ruolo = (current_user.get("ruolo") or "").upper()
         ruoli = [str(r).upper() for r in (current_user.get("ruoli") or [])]
@@ -1088,6 +1088,9 @@ def main(page: ft.Page):
 
 
 ft.run(main)
+
+
+
 
 
 

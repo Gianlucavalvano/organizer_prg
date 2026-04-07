@@ -3,18 +3,19 @@ from datetime import datetime
 
 import flet as ft
 
-import controllo_scadenze
-import db_handler_progetti as db
-import gestione_archivio
-import gestore_esportazione
-import report_task_intervallo
-import stampa_api
-from ui_progetti_helpers import formatta_data
-import vista_anagrafica
-import vista_dettaglio_progetto
-import vista_ruoli
-import vista_setting
-import vista_utenti
+from organizer_ict.services import controllo_scadenze
+from organizer_ict.db import handler as db
+from . import gestione_archivio
+from organizer_ict.services import gestore_esportazione
+from organizer_ict.services import report_task_intervallo
+from organizer_ict.services import stampa_api
+from organizer_ict.ui_helpers import formatta_data
+from . import vista_anagrafica
+from . import vista_dettaglio_progetto
+from . import vista_ruoli
+from . import vista_setting
+from . import vista_utenti
+from organizer_ict.integrations import ore_progetto_bridge
 
 
 class GestioneProgettiController:
@@ -92,6 +93,13 @@ class GestioneProgettiController:
         self.sidebar = None
         self.progetti_espansi = set()
         self.nav_keys = []
+
+        apps = self.current_user.get("apps") or []
+        self.enabled_app_codes = {str(a.get("codice", "")).upper() for a in apps if isinstance(a, dict)}
+
+    def _has_app(self, code: str) -> bool:
+        code_u = str(code or "").upper()
+        return code_u in self.enabled_app_codes
 
     def torna_indietro(self, _):
         # Ripristina il comportamento tastiera quando si esce dalla vista.
@@ -1102,6 +1110,8 @@ class GestioneProgettiController:
             self.area_contenuto.content = self.get_contenuto_note_giornata()
         elif key == "setting":
             self.area_contenuto.content = vista_setting.get_contenuto_setting(self.page)
+        elif key == "ore_progetto":
+            self.area_contenuto.content = ore_progetto_bridge.crea_vista_entry(self.page, self.current_user)
 
         self.area_contenuto.update()
 
@@ -1138,6 +1148,16 @@ class GestioneProgettiController:
                     icon=ft.Icons.MANAGE_ACCOUNTS_OUTLINED,
                     selected_icon=ft.Icons.MANAGE_ACCOUNTS,
                     label="Utenti",
+                )
+            )
+
+        if self._has_app("ORE_PROGETTO"):
+            self.nav_keys.append("ore_progetto")
+            destinations.append(
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.ACCESS_TIME_OUTLINED,
+                    selected_icon=ft.Icons.ACCESS_TIME,
+                    label="Ore Progetto",
                 )
             )
 
@@ -1195,4 +1215,11 @@ class GestioneProgettiController:
 def crea_vista_gestione_progetti(page: ft.Page, current_user: dict | None = None):
     controller = GestioneProgettiController(page, current_user=current_user)
     return controller.create_view()
+
+
+
+
+
+
+
 

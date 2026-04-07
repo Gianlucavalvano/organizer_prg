@@ -36,19 +36,19 @@ def genera_pdf(tipo: str, **kwargs):
     if tipo_norm == "progetto":
         pid = kwargs["pid"]
         nome_progetto = kwargs["nome_progetto"]
-        import gestore_report
+        from . import gestore_report
 
         pdf_bytes = gestore_report.genera_pdf_progetto_in_memoria(pid, nome_progetto)
         return pdf_bytes, _nome_default_progetto(nome_progetto), "Salva Report Progetto"
 
     if tipo_norm == "lista":
-        import lista_progetti_pdf
+        from . import lista_progetti_pdf
 
         pdf_bytes = lista_progetti_pdf.genera_lista_in_memoria()
         return pdf_bytes, _nome_default_lista(), "Salva Lista Progetti"
 
     if tipo_norm == "dashboard":
-        import dashboard_pdf
+        from . import dashboard_pdf
 
         pdf_bytes = dashboard_pdf.genera_dashboard_in_memoria()
         return pdf_bytes, _nome_default_dashboard(), "Salva Dashboard"
@@ -86,3 +86,4 @@ async def salva_pdf_dialog(page: ft.Page, pdf_bytes: bytes, nome_default: str, t
 async def stampa(page: ft.Page, tipo: str, **kwargs) -> str | None:
     pdf_bytes, nome_default, titolo = genera_pdf(tipo, **kwargs)
     return await salva_pdf_dialog(page, pdf_bytes, nome_default, titolo)
+

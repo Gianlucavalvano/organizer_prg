@@ -11,8 +11,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-import db_handler_progetti as db
-import stampa_api
+from organizer_ict.db import handler as db
+from . import stampa_api
 
 
 def _to_iso(date_value):
@@ -299,3 +299,4 @@ def apri_dialog_task_intervallo(page: ft.Page):
     page.overlay.append(dialog)
     dialog.open = True
     page.update()
+

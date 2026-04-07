@@ -2,9 +2,9 @@ from datetime import datetime
 
 import flet as ft
 
-import mail_globale
-import mail_progetto
-import mail_task_singolo
+from organizer_ict.services import mail_globale
+from organizer_ict.services import mail_progetto
+from organizer_ict.services import mail_task_singolo
 
 
 def formatta_data(data_str):
@@ -61,3 +61,4 @@ def crea_menu_risorsa(page: ft.Page, nome_risorsa, id_task):
             ),
         ],
     )
+

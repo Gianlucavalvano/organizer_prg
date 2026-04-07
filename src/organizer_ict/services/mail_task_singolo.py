@@ -10,7 +10,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-import db_handler_progetti as database
+from organizer_ict.db import handler as database
 
 
 def invia_mail_singolo_task(page: ft.Page, id_task: int):
@@ -157,3 +157,4 @@ def invia_mail_singolo_task(page: ft.Page, id_task: int):
 
     except Exception as e:
         print(f"Errore invia_mail_singolo_task: {e}")
+

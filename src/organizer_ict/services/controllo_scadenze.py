@@ -4,7 +4,7 @@ import asyncio
 
 import flet as ft
 
-import db_handler_progetti as db
+from organizer_ict.db import handler as db
 
 
 def _short_text(value: str, max_len: int = 50) -> str:
@@ -109,3 +109,4 @@ def apri_dialog_attivita_scadute(
     page.overlay.append(dialog)
     dialog.open = True
     page.update()
+

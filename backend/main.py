@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +13,7 @@ from psycopg import Connection
 from backend.auth import AuthUser, get_current_user, router as auth_router
 from backend.db import get_db_connection
 from backend.settings import get_attachments_storage_root
+from backend.decorators import require_admin, require_permission, with_api_logging, with_hashed_password
 
 PERM_APP_GESTIONE_OPEN = "APP_GESTIONE_OPEN"
 PERM_APP_ORE_PROGETTO_OPEN = "APP_ORE_PROGETTO_OPEN"
@@ -184,6 +185,7 @@ def health_db(conn: Connection = Depends(get_db_connection)):
 
 
 @app.get("/apps/me")
+@with_api_logging("apps.me")
 def apps_me(
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
@@ -230,11 +232,12 @@ def apps_me(
 
 
 @app.get("/progetti")
+@with_api_logging("progetti.list")
+@require_permission(PERM_APP_GESTIONE_OPEN)
 def list_progetti(
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_permission(user, PERM_APP_GESTIONE_OPEN)
 
     sql = """
         SELECT
@@ -278,12 +281,13 @@ def list_progetti(
 
 
 @app.post("/progetti", status_code=status.HTTP_201_CREATED)
+@with_api_logging("progetti.create")
+@require_permission(PERM_APP_GESTIONE_OPEN)
 def create_progetto(
     payload: ProgettoCreateIn,
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_permission(user, PERM_APP_GESTIONE_OPEN)
 
     nome = (payload.nome_progetto or "").strip()
     if not nome:
@@ -345,13 +349,14 @@ def create_progetto(
 
 
 @app.put("/progetti/{id_progetto}")
+@with_api_logging("progetti.update")
+@require_permission(PERM_APP_GESTIONE_OPEN)
 def update_progetto(
     id_progetto: int,
     payload: ProgettoUpdateIn,
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_permission(user, PERM_APP_GESTIONE_OPEN)
     nome = (payload.nome_progetto or "").strip()
     if not nome:
         raise HTTPException(status_code=400, detail="nome_progetto obbligatorio")
@@ -381,12 +386,13 @@ def update_progetto(
 
 
 @app.delete("/progetti/{id_progetto}")
+@with_api_logging("progetti.delete")
+@require_permission(PERM_APP_GESTIONE_OPEN)
 def delete_progetto_logico(
     id_progetto: int,
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_permission(user, PERM_APP_GESTIONE_OPEN)
     now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     with conn.cursor() as cur:
@@ -415,12 +421,13 @@ def delete_progetto_logico(
 
 
 @app.get("/task")
+@with_api_logging("task.list")
+@require_permission(PERM_APP_GESTIONE_OPEN)
 def list_task(
     id_progetto: int | None = Query(default=None),
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_permission(user, PERM_APP_GESTIONE_OPEN)
 
     sql = """
         SELECT
@@ -486,12 +493,13 @@ def list_task(
 
 
 @app.get("/task/{id_task}")
+@with_api_logging("task.get")
+@require_permission(PERM_APP_GESTIONE_OPEN)
 def get_task(
     id_task: int,
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_permission(user, PERM_APP_GESTIONE_OPEN)
 
     with conn.cursor() as cur:
         _assert_task_access(cur, user, id_task)
@@ -541,12 +549,13 @@ def get_task(
         "owner_user_id": row[13],
     }
 @app.post("/task", status_code=status.HTTP_201_CREATED)
+@with_api_logging("task.create")
+@require_permission(PERM_APP_GESTIONE_OPEN)
 def create_task(
     payload: TaskCreateIn,
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_permission(user, PERM_APP_GESTIONE_OPEN)
 
     titolo = (payload.titolo or "").strip()
     if not titolo:
@@ -597,13 +606,14 @@ def create_task(
 
 
 @app.put("/task/{id_task}")
+@with_api_logging("task.update")
+@require_permission(PERM_APP_GESTIONE_OPEN)
 def update_task(
     id_task: int,
     payload: TaskUpdateIn,
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_permission(user, PERM_APP_GESTIONE_OPEN)
     titolo = (payload.titolo or "").strip()
     if not titolo:
         raise HTTPException(status_code=400, detail="titolo obbligatorio")
@@ -641,13 +651,14 @@ def update_task(
 
 
 @app.patch("/task/{id_task}/completa")
+@with_api_logging("task.complete")
+@require_permission(PERM_APP_GESTIONE_OPEN)
 def complete_task(
     id_task: int,
     payload: TaskCompleteIn,
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_permission(user, PERM_APP_GESTIONE_OPEN)
     is_done = 1 if payload.completato else 0
     done_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S") if payload.completato else None
 
@@ -685,12 +696,13 @@ def complete_task(
 
 
 @app.delete("/task/{id_task}")
+@with_api_logging("task.delete")
+@require_permission(PERM_APP_GESTIONE_OPEN)
 def delete_task_logico(
     id_task: int,
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_permission(user, PERM_APP_GESTIONE_OPEN)
     now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     with conn.cursor() as cur:
@@ -781,11 +793,12 @@ def _hash_password(password: str) -> str:
 
 
 @app.get("/utenti")
+@with_api_logging("utenti.list")
+@require_admin()
 def list_utenti(
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_admin(user)
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -808,21 +821,23 @@ def list_utenti(
 
 
 @app.post("/utenti", status_code=status.HTTP_201_CREATED)
+@with_api_logging("utenti.create_or_update")
+@require_admin()
+@with_hashed_password(payload_kw="payload", password_attr="password", out_kw="password_hash", required=True)
 def create_or_update_utente(
     payload: UserCreateIn,
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
+    password_hash: str | None = None,
 ):
-    _require_admin(user)
     uname = (payload.username or "").strip()
-    if not uname or not payload.password:
+    if not uname:
         raise HTTPException(status_code=400, detail="Username e password obbligatori")
 
     ruolo = (payload.ruolo or "USER").strip().upper()
     if ruolo not in ("ADMIN", "USER"):
         ruolo = "USER"
 
-    pw_hash = _hash_password(payload.password)
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -835,7 +850,7 @@ def create_or_update_utente(
                 attivo = EXCLUDED.attivo
             RETURNING id_utente
             """,
-            (uname, pw_hash, ruolo, bool(payload.attivo)),
+            (uname, password_hash, ruolo, bool(payload.attivo)),
         )
         uid = int(cur.fetchone()[0])
 
@@ -856,13 +871,14 @@ def create_or_update_utente(
 
 
 @app.patch("/utenti/{id_utente}/ruolo")
+@with_api_logging("utenti.set_ruolo")
+@require_admin()
 def set_ruolo_utente(
     id_utente: int,
     payload: UserRoleIn,
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_admin(user)
     ruolo = (payload.ruolo or "USER").strip().upper()
     if ruolo not in ("ADMIN", "USER"):
         ruolo = "USER"
@@ -885,13 +901,14 @@ def set_ruolo_utente(
 
 
 @app.patch("/utenti/{id_utente}/attivo")
+@with_api_logging("utenti.set_attivo")
+@require_admin()
 def set_attivo_utente(
     id_utente: int,
     payload: UserAttivoIn,
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_admin(user)
     with conn.cursor() as cur:
         cur.execute("UPDATE utenti SET attivo = %s WHERE id_utente = %s", (bool(payload.attivo), id_utente))
     conn.commit()
@@ -899,20 +916,20 @@ def set_attivo_utente(
 
 
 @app.post("/utenti/{id_utente}/reset-password")
+@with_api_logging("utenti.reset_password")
+@require_admin()
+@with_hashed_password(payload_kw="payload", password_attr="password", out_kw="password_hash", required=True)
 def reset_password_utente(
     id_utente: int,
     payload: UserPasswordIn,
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
+    password_hash: str | None = None,
 ):
-    _require_admin(user)
-    if not payload.password:
-        raise HTTPException(status_code=400, detail="Password vuota")
-
     with conn.cursor() as cur:
         cur.execute(
             "UPDATE utenti SET password_hash = %s WHERE id_utente = %s",
-            (_hash_password(payload.password), id_utente),
+            (password_hash, id_utente),
         )
     conn.commit()
     return {"ok": True, "id_utente": id_utente}
@@ -1951,11 +1968,12 @@ def ore_elimina_riga(
     return {"ok": True, "id_ore": id_ore}
 
 @app.get("/admin/moduli/catalogo")
+@with_api_logging("admin.moduli.catalogo")
+@require_admin()
 def admin_moduli_catalogo(
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_admin(user)
     _ensure_utenti_applicazioni_table(conn)
     with conn.cursor() as cur:
         cur.execute(
@@ -1979,11 +1997,12 @@ def admin_moduli_catalogo(
 
 
 @app.get("/admin/moduli/utenti")
+@with_api_logging("admin.moduli.utenti")
+@require_admin()
 def admin_moduli_utenti(
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_admin(user)
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -2000,12 +2019,13 @@ def admin_moduli_utenti(
 
 
 @app.get("/admin/moduli/utenti/{id_utente}")
+@with_api_logging("admin.moduli.utente.get")
+@require_admin()
 def admin_moduli_utente_get(
     id_utente: int,
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_admin(user)
     _ensure_utenti_applicazioni_table(conn)
     with conn.cursor() as cur:
         cur.execute("SELECT COUNT(*) FROM utenti WHERE id_utente = %s", (id_utente,))
@@ -2068,13 +2088,14 @@ def admin_moduli_utente_get(
 
 
 @app.put("/admin/moduli/utenti/{id_utente}")
+@with_api_logging("admin.moduli.utente.set")
+@require_admin()
 def admin_moduli_utente_put(
     id_utente: int,
     payload: dict,
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
-    _require_admin(user)
     _ensure_utenti_applicazioni_table(conn)
 
     codici = sorted(set([str(c).strip() for c in ((payload or {}).get("codici") or []) if str(c).strip()]))
@@ -2139,6 +2160,18 @@ def _ensure_utenti_applicazioni_table(conn: Connection):
             """
         )
     conn.commit()
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

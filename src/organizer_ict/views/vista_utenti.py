@@ -1,6 +1,6 @@
 import flet as ft
 
-import db_handler_progetti as db
+from organizer_ict.db import handler as db
 
 
 def crea_vista_utenti(page: ft.Page, current_user: dict):
@@ -158,3 +158,4 @@ def crea_vista_utenti(page: ft.Page, current_user: dict):
         ],
         expand=True,
     )
+

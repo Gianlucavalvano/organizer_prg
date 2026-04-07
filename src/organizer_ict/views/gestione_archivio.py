@@ -1,5 +1,5 @@
 import flet as ft
-import db_handler_progetti as db
+from organizer_ict.db import handler as db
 
 
 def crea_vista_archivio(page: ft.Page):
@@ -177,3 +177,4 @@ def crea_vista_archivio(page: ft.Page):
     ricarica_archivio()
 
     return contenitore_archivio
+
