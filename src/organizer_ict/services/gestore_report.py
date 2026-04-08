@@ -153,18 +153,22 @@ def genera_pdf_progetto_in_memoria(pid, nome_progetto):
     
     def _estrai_gerarchia(parent_id, livello):
         # Query Corretta: Join su risorse senza tabella assegnazioni
-        q = """SELECT t.titolo, t.data_inizio, t.data_fine, t.percentuale_avanzamento, 
+        base_q = """SELECT t.titolo, t.data_inizio, t.data_fine, t.percentuale_avanzamento, 
                       r.nome || ' ' || r.cognome, t.id_task, t.tipo_task, t.completato,
                       t.data_inserimento, st.nome_stato, t.data_completato
                FROM task t 
                LEFT JOIN risorse r ON t.id_risorsa = r.id_risorsa 
                LEFT JOIN tab_stati st ON t.id_stato = st.id_stato
-               WHERE t.id_progetto = ? AND t.id_parent IS """ + ("NULL" if parent_id is None else "?") + """ 
+               WHERE t.id_progetto = ?
                AND t.attivo = 1 
-               """ + owner_filter_t + """
-               ORDER BY t.data_inserimento ASC"""
-        
-        params = (pid,) if parent_id is None else (pid, parent_id)
+               """
+
+        if parent_id is None:
+            q = base_q + " AND t.id_parent IS NULL " + owner_filter_t + " ORDER BY t.data_inserimento ASC"
+            params = (pid,)
+        else:
+            q = base_q + " AND t.id_parent = ? " + owner_filter_t + " ORDER BY t.data_inserimento ASC"
+            params = (pid, parent_id)
         if owner_filter_t:
             params = params + owner_params_t
         cursor.execute(q, params)
