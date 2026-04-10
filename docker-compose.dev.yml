@@ -1,0 +1,61 @@
+﻿services:
+  postgres:
+    image: postgres:16
+    container_name: organizer_postgres_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: organizer_db
+      POSTGRES_USER: organizer_user
+      POSTGRES_PASSWORD: organizer_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data_dev:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: organizer_backend_dev
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: organizer_db
+      DB_USER: organizer_user
+      DB_PASSWORD: organizer_pass
+      API_SECRET_KEY: CHANGE_ME_IN_DEV
+      API_ACCESS_TOKEN_MINUTES: 120
+      BOOTSTRAP_ADMIN_USERNAME: admin4
+      BOOTSTRAP_ADMIN_PASSWORD: miodb2026
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: organizer_frontend_dev
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: organizer_db
+      DB_USER: organizer_user
+      DB_PASSWORD: organizer_pass
+      API_BASE_URL: http://backend:8000
+    ports:
+      - "8550:8550"
+    volumes:
+      - ./:/app
+    command: flet run src/main.py --web --host 0.0.0.0 --port 8550
+
+volumes:
+  pg_data_dev:

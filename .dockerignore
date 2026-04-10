@@ -1,0 +1,11 @@
+﻿.git
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.db
+storage
+attachments
+sql
+.tmp

@@ -1,5 +1,9 @@
 import flet as ft
-import pyodbc
+
+try:
+    import pyodbc  # type: ignore
+except Exception:
+    pyodbc = None
 
 # Configurazione (Centralizzata per visualizzarla in testata)
 SCHEMA_TABELLA = "RIVPVAL.RIBEML_X"
@@ -114,7 +118,11 @@ def crea_vista_login_as400(page: ft.Page):
             t_errore.value = "Campi obbligatori mancanti."
             page.update()
             return
-            
+        if pyodbc is None:
+            t_errore.value = "Driver AS400 non disponibile in questo ambiente."
+            page.update()
+            return
+
         conn_str = f'DSN={t_dsn.value};UID={t_user.value};PWD={t_pass.value};Naming=1;'
         try:
             sessione["conn"] = pyodbc.connect(conn_str)

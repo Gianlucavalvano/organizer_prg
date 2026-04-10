@@ -35,8 +35,12 @@ def main(page: ft.Page):
     orig_imposta_attivo_utente = db.imposta_attivo_utente
     orig_reset_password_utente = db.reset_password_utente
     orig_leggi_moduli_disponibili = db.leggi_moduli_disponibili
+    orig_leggi_categorie_modulo = db.leggi_categorie_modulo
     orig_leggi_moduli_utente = db.leggi_moduli_utente
     orig_imposta_moduli_utente = db.imposta_moduli_utente
+    orig_crea_app_modulo = db.crea_app_modulo
+    orig_aggiorna_app_modulo = db.aggiorna_app_modulo
+    orig_imposta_attiva_app_modulo = db.imposta_attiva_app_modulo
 
     orig_leggi_progetti_archiviati = db.leggi_progetti_archiviati
     orig_ripristina_progetto_db = db.ripristina_progetto_db
@@ -74,6 +78,21 @@ def main(page: ft.Page):
         if not current_token:
             return {}
         return {"Authorization": f"Bearer {current_token}"}
+
+    def _needs_payload_wrapper(res) -> bool:
+        try:
+            detail = res.json().get("detail")
+        except Exception:
+            return False
+        if not isinstance(detail, list):
+            return False
+        for item in detail:
+            try:
+                if list(item.get("loc") or []) == ["body", "payload"]:
+                    return True
+            except Exception:
+                continue
+        return False
 
     def _ensure_root_view():
         if not page.views:
@@ -316,11 +335,36 @@ def main(page: ft.Page):
                     r.get("nome") or "",
                     r.get("route") or "",
                     True if r.get("attiva") else False,
+                    r.get("descrizione") or "",
+                    r.get("icona") or "",
+                    r.get("categoria") or "",
+                    int(r.get("ordine_menu") or 1000),
+                    True if r.get("visibile_menu", True) else False,
                 )
                 for r in rows
             ]
         except Exception:
             return orig_leggi_moduli_disponibili()
+
+    def _api_leggi_categorie_modulo():
+        if not current_token:
+            return orig_leggi_categorie_modulo()
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                res = client.get(f"{api_base_url}/admin/moduli/categorie", headers=_api_headers())
+            if res.status_code != 200:
+                return orig_leggi_categorie_modulo()
+            rows = res.json() or []
+            return [
+                (
+                    str(r.get("codice") or "").strip().upper(),
+                    str(r.get("descrizione") or "").strip(),
+                )
+                for r in rows
+                if str(r.get("codice") or "").strip()
+            ]
+        except Exception:
+            return orig_leggi_categorie_modulo()
 
     def _api_leggi_moduli_utente(id_utente):
         if not current_token:
@@ -339,12 +383,19 @@ def main(page: ft.Page):
         if not current_token:
             return orig_imposta_moduli_utente(id_utente, codici_modulo)
         try:
+            payload = {"codici": list(codici_modulo or [])}
             with httpx.Client(timeout=10.0) as client:
                 res = client.put(
                     f"{api_base_url}/admin/moduli/utenti/{int(id_utente)}",
                     headers=_api_headers(),
-                    json={"codici": list(codici_modulo or [])},
+                    json=payload,
                 )
+                if res.status_code == 422 and _needs_payload_wrapper(res):
+                    res = client.put(
+                        f"{api_base_url}/admin/moduli/utenti/{int(id_utente)}",
+                        headers=_api_headers(),
+                        json={"payload": payload},
+                    )
             if res.status_code in (200, 201):
                 return True, "Abilitazioni aggiornate"
             try:
@@ -352,6 +403,98 @@ def main(page: ft.Page):
             except Exception:
                 msg = res.text
             return False, f"Errore API abilitazioni: {msg}"
+        except Exception as ex:
+            return False, f"Backend non raggiungibile: {ex}"
+
+    def _api_crea_app_modulo(codice, nome, route, descrizione="", icona="", categoria="", ordine_menu=1000, attiva=True, visibile_menu=True):
+        if not current_token:
+            return orig_crea_app_modulo(codice, nome, route, descrizione, icona, categoria, ordine_menu, attiva, visibile_menu)
+        try:
+            payload = {
+                "codice": codice,
+                "nome": nome,
+                "route": route,
+                "descrizione": descrizione or "",
+                "icona": icona or "",
+                "categoria": categoria or "",
+                "ordine_menu": int(ordine_menu if ordine_menu is not None else 1000),
+                "attiva": bool(attiva),
+                "visibile_menu": bool(visibile_menu),
+            }
+            with httpx.Client(timeout=10.0) as client:
+                res = client.post(f"{api_base_url}/admin/moduli/apps", headers=_api_headers(), json=payload)
+                if res.status_code == 422 and _needs_payload_wrapper(res):
+                    res = client.post(
+                        f"{api_base_url}/admin/moduli/apps",
+                        headers=_api_headers(),
+                        json={"payload": payload},
+                    )
+            if res.status_code in (200, 201):
+                return True, "Applicazione creata"
+            try:
+                msg = res.json().get("detail")
+            except Exception:
+                msg = res.text
+            return False, f"Errore API creazione app: {msg}"
+        except Exception as ex:
+            return False, f"Backend non raggiungibile: {ex}"
+
+    def _api_aggiorna_app_modulo(id_app, codice, nome, route, descrizione="", icona="", categoria="", ordine_menu=1000, attiva=True, visibile_menu=True):
+        if not current_token:
+            return orig_aggiorna_app_modulo(id_app, codice, nome, route, descrizione, icona, categoria, ordine_menu, attiva, visibile_menu)
+        try:
+            payload = {
+                "codice": codice,
+                "nome": nome,
+                "route": route,
+                "descrizione": descrizione or "",
+                "icona": icona or "",
+                "categoria": categoria or "",
+                "ordine_menu": int(ordine_menu if ordine_menu is not None else 1000),
+                "attiva": bool(attiva),
+                "visibile_menu": bool(visibile_menu),
+            }
+            with httpx.Client(timeout=10.0) as client:
+                res = client.put(f"{api_base_url}/admin/moduli/apps/{int(id_app)}", headers=_api_headers(), json=payload)
+                if res.status_code == 422 and _needs_payload_wrapper(res):
+                    res = client.put(
+                        f"{api_base_url}/admin/moduli/apps/{int(id_app)}",
+                        headers=_api_headers(),
+                        json={"payload": payload},
+                    )
+            if res.status_code in (200, 201):
+                return True, "Applicazione aggiornata"
+            try:
+                msg = res.json().get("detail")
+            except Exception:
+                msg = res.text
+            return False, f"Errore API aggiornamento app: {msg}"
+        except Exception as ex:
+            return False, f"Backend non raggiungibile: {ex}"
+
+    def _api_imposta_attiva_app_modulo(id_app, attiva):
+        if not current_token:
+            return orig_imposta_attiva_app_modulo(id_app, attiva)
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                res = client.patch(
+                    f"{api_base_url}/admin/moduli/apps/{int(id_app)}/attiva",
+                    headers=_api_headers(),
+                    json={"attiva": bool(attiva)},
+                )
+                if res.status_code == 422 and _needs_payload_wrapper(res):
+                    res = client.patch(
+                        f"{api_base_url}/admin/moduli/apps/{int(id_app)}/attiva",
+                        headers=_api_headers(),
+                        json={"payload": {"attiva": bool(attiva)}},
+                    )
+            if res.status_code in (200, 201):
+                return True, "Stato applicazione aggiornato"
+            try:
+                msg = res.json().get("detail")
+            except Exception:
+                msg = res.text
+            return False, f"Errore API stato app: {msg}"
         except Exception as ex:
             return False, f"Backend non raggiungibile: {ex}"
 
@@ -843,8 +986,12 @@ def main(page: ft.Page):
         db.imposta_attivo_utente = _api_imposta_attivo_utente
         db.reset_password_utente = _api_reset_password_utente
         db.leggi_moduli_disponibili = _api_leggi_moduli_disponibili
+        db.leggi_categorie_modulo = _api_leggi_categorie_modulo
         db.leggi_moduli_utente = _api_leggi_moduli_utente
         db.imposta_moduli_utente = _api_imposta_moduli_utente
+        db.crea_app_modulo = _api_crea_app_modulo
+        db.aggiorna_app_modulo = _api_aggiorna_app_modulo
+        db.imposta_attiva_app_modulo = _api_imposta_attiva_app_modulo
 
         db.leggi_progetti_archiviati = _api_leggi_progetti_archiviati
         db.ripristina_progetto_db = _api_ripristina_progetto_db
@@ -888,8 +1035,12 @@ def main(page: ft.Page):
         db.imposta_attivo_utente = orig_imposta_attivo_utente
         db.reset_password_utente = orig_reset_password_utente
         db.leggi_moduli_disponibili = orig_leggi_moduli_disponibili
+        db.leggi_categorie_modulo = orig_leggi_categorie_modulo
         db.leggi_moduli_utente = orig_leggi_moduli_utente
         db.imposta_moduli_utente = orig_imposta_moduli_utente
+        db.crea_app_modulo = orig_crea_app_modulo
+        db.aggiorna_app_modulo = orig_aggiorna_app_modulo
+        db.imposta_attiva_app_modulo = orig_imposta_attiva_app_modulo
 
         db.leggi_progetti_archiviati = orig_leggi_progetti_archiviati
         db.ripristina_progetto_db = orig_ripristina_progetto_db
@@ -921,6 +1072,20 @@ def main(page: ft.Page):
         db.aggiungi_ruolo = orig_aggiungi_ruolo
         db.modifica_ruolo = orig_modifica_ruolo
         db.elimina_logica_ruolo = orig_elimina_logica_ruolo
+
+    def _do_logout_and_go_login():
+        nonlocal current_user, current_token, current_apps
+        current_user = None
+        current_token = None
+        current_apps = []
+        _disable_api_bindings()
+        db.clear_current_user()
+        # Reset esplicito di view stack + route: in Flet Web evita stati "bloccati"
+        # dopo molte navigazioni o sessioni containerizzate.
+        page.views.clear()
+        page.views.append(ft.View(route="/", controls=[]))
+        page.route = "/"
+        render_login()
 
     def render_login():
         txt_user = ft.TextField(label="Username", width=320, autofocus=True)
@@ -1052,13 +1217,7 @@ def main(page: ft.Page):
             bottoni.append(ft.Text("Nessuna applicazione assegnata a questo utente.", color=ft.Colors.RED_700))
 
         def do_logout(_):
-            nonlocal current_user, current_token, current_apps
-            current_user = None
-            current_token = None
-            current_apps = []
-            _disable_api_bindings()
-            db.clear_current_user()
-            render_login()
+            _do_logout_and_go_login()
 
         _render_root(
             ft.SafeArea(
