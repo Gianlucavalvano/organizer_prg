@@ -38,6 +38,7 @@ def create_or_update_utente(
     ruolo: str,
     attivo: bool,
 ) -> int:
+    attivo_db = 1 if bool(attivo) else 0
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -50,7 +51,7 @@ def create_or_update_utente(
                 attivo = EXCLUDED.attivo
             RETURNING id_utente
             """,
-            (username, password_hash, ruolo, attivo),
+            (username, password_hash, ruolo, attivo_db),
         )
         uid = int(cur.fetchone()[0])
 
@@ -88,8 +89,9 @@ def set_ruolo_utente(conn: Connection, *, id_utente: int, ruolo: str):
 
 
 def set_attivo_utente(conn: Connection, *, id_utente: int, attivo: bool):
+    attivo_db = 1 if bool(attivo) else 0
     with conn.cursor() as cur:
-        cur.execute("UPDATE utenti SET attivo = %s WHERE id_utente = %s", (attivo, id_utente))
+        cur.execute("UPDATE utenti SET attivo = %s WHERE id_utente = %s", (attivo_db, id_utente))
     conn.commit()
 
 

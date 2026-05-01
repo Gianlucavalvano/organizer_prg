@@ -107,7 +107,7 @@ def owner_filter_sql(alias: str = "", column: str = "owner_user_id", leading_and
 # FUNZIONE DI SICUREZZA (AGGIUNGE COLONNE SE MANCANO)
 # --------------------------------------------------------
 def verifica_e_aggiorna_colonna(tabella, colonna, tipo_dati):
-    """Controlla se una colonna c'è. Se manca, la aggiunge senza cancellare i dati."""
+    """Controlla se una colonna c'Ã¨. Se manca, la aggiunge senza cancellare i dati."""
     conn = connetti()
     c = conn.cursor()
     try:
@@ -360,7 +360,7 @@ def inizializza_db():
     c.execute(
         """
         INSERT INTO permessi (codice, descrizione) VALUES
-            (%s, 'Accesso modulo Gestione Progetti'),
+            (%s, 'Accesso modulo Organizer Project'),
             (%s, 'Accesso modulo AS400')
         ON CONFLICT (codice) DO NOTHING
         """,
@@ -382,7 +382,7 @@ def inizializza_db():
     c.execute(
         """
         INSERT INTO applicazioni (codice, nome, route, attiva, categoria) VALUES
-            ('GESTIONE', 'Gestione Progetti', '/gestione', TRUE, 'UTILY'),
+            ('GESTIONE', 'Organizer Project', '/gestione', TRUE, 'UTILY'),
             ('AS400', 'AS400', '/as400', TRUE, 'UTILY'),
             ('ORE_PROGETTO', 'Ore Progetto', '/ore-progetto', TRUE, 'ICT')
         ON CONFLICT (codice)
@@ -1001,7 +1001,7 @@ def crea_task_da_nota(id_nota, id_progetto):
         titolo = (row[0] or "").strip()
         if not titolo:
             conn.close()
-            return False, None, "La nota è vuota."
+            return False, None, "La nota Ã¨ vuota."
 
         data_ins = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         c.execute(
@@ -1122,7 +1122,7 @@ def get_allegato_abs_path(id_allegato):
     rel = row[0] or ""
     nome_storage = row[1] or ""
 
-    # 1) Path assoluto già salvato nel DB.
+    # 1) Path assoluto giÃ  salvato nel DB.
     if os.path.isabs(rel) and os.path.exists(rel):
         return rel
 
@@ -1416,7 +1416,7 @@ def leggi_risorse_attive():
     inizializza_db()
     conn = connetti()
     c = conn.cursor()
-     # Nota: servono 3 colonne perché la tabella risorse ne restituisce 3
+     # Nota: servono 3 colonne perchÃ© la tabella risorse ne restituisce 3
     query = """
         SELECT id_risorsa, nome, cognome, email FROM risorse WHERE attivo = 1
         ORDER BY 3, 2
@@ -1629,7 +1629,7 @@ def leggi_dati_stampa_lista():
 
 def leggi_attivita_scadute():
     """
-    Elenca attività scadute:
+    Elenca Attività Scadute:
     - Progetti con data1_checkpoint < data odierna.
     - Task con data_fine < data odierna e non completati.
     Output tuple:
@@ -1809,7 +1809,7 @@ def hash_password(password: str) -> str:
 def verifica_password(password: str, stored_hash: str) -> bool:
     """
     Verifica hash PBKDF2.
-    Compatibilità legacy: se hash non in formato noto, confronto diretto.
+    CompatibilitÃ  legacy: se hash non in formato noto, confronto diretto.
     """
     if not stored_hash:
         return False
@@ -2197,5 +2197,3 @@ def imposta_attiva_app_modulo(id_app: int, attiva: bool):
         return False, f"Errore aggiornamento stato app: {ex}"
     finally:
         conn.close()
-
-

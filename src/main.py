@@ -250,17 +250,24 @@ def main(page: ft.Page):
         if not current_token:
             return orig_crea_o_aggiorna_utente(username, password, ruolo, attivo)
         try:
+            payload = {
+                "username": username,
+                "password": password,
+                "ruolo": ruolo,
+                "attivo": bool(attivo),
+            }
             with httpx.Client(timeout=10.0) as client:
                 res = client.post(
                     f"{api_base_url}/utenti",
                     headers=_api_headers(),
-                    json={
-                        "username": username,
-                        "password": password,
-                        "ruolo": ruolo,
-                        "attivo": bool(attivo),
-                    },
+                    json=payload,
                 )
+                if res.status_code == 422 and _needs_payload_wrapper(res):
+                    res = client.post(
+                        f"{api_base_url}/utenti",
+                        headers=_api_headers(),
+                        json={"payload": payload},
+                    )
             if res.status_code in (200, 201):
                 return True, "Utente salvato."
             try:
@@ -270,6 +277,7 @@ def main(page: ft.Page):
             return False, f"Errore API utenti: {msg}"
         except Exception as ex:
             return False, f"Backend non raggiungibile: {ex}"
+
 
     def _api_imposta_ruolo_utente(id_utente, ruolo):
         if not current_token:
@@ -1136,7 +1144,7 @@ def main(page: ft.Page):
             render_login()
             return
         if not _has_perm(PERM_APP_GESTIONE_OPEN):
-            page.snack_bar = ft.SnackBar(ft.Text("Accesso negato a Gestione Progetti"), bgcolor=ft.Colors.RED_700)
+            page.snack_bar = ft.SnackBar(ft.Text("Accesso negato a Organizer Project"), bgcolor=ft.Colors.RED_700)
             page.snack_bar.open = True
             page.update()
             return
@@ -1147,7 +1155,7 @@ def main(page: ft.Page):
             page.views.append(nuova_pagina)
             page.update()
         except Exception as ex:
-            page.snack_bar = ft.SnackBar(ft.Text(f"Errore apertura Gestione Progetti: {ex}"), bgcolor=ft.Colors.RED_700)
+            page.snack_bar = ft.SnackBar(ft.Text(f"Errore apertura Organizer Project: {ex}"), bgcolor=ft.Colors.RED_700)
             page.snack_bar.open = True
             page.update()
     def apri_finestra_as400(_):
@@ -1247,19 +1255,3 @@ def main(page: ft.Page):
 
 
 ft.run(main)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

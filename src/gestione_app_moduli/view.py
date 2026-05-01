@@ -1,4 +1,4 @@
-﻿import flet as ft
+import flet as ft
 
 import db_handler_progetti as db
 
@@ -21,7 +21,9 @@ def crea_vista(page: ft.Page, current_user: dict):
 
     msg = ft.Text("")
     all_rows: list[tuple] = []
+    visible_rows: list[tuple] = []
     page_index = 0
+    search_query = {"value": ""}
 
     editing_id = {"value": None}
     tf_codice = ft.TextField(label="Codice", width=220, hint_text="ES: ORE_PROGETTO")
@@ -35,7 +37,14 @@ def crea_vista(page: ft.Page, current_user: dict):
     cb_visibile = ft.Checkbox(label="Visibile menu", value=True)
     dialog_msg = ft.Text("")
 
-    list_host = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO)
+    tf_search = ft.TextField(
+        hint_text="Ricerca per nome, codice, route, categoria...",
+        prefix_icon=ft.Icons.SEARCH,
+        width=420,
+        dense=True,
+    )
+
+    list_host = ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO)
     lbl_pagina = ft.Text("Pagina 0/0", size=12, color=ft.Colors.BLUE_GREY_700)
 
     dlg = ft.AlertDialog(modal=True)
@@ -60,9 +69,29 @@ def crea_vista(page: ft.Page, current_user: dict):
         return bool(v)
 
     def total_pages() -> int:
-        if not all_rows:
+        if not visible_rows:
             return 1
-        return (len(all_rows) + PAGE_SIZE - 1) // PAGE_SIZE
+        return (len(visible_rows) + PAGE_SIZE - 1) // PAGE_SIZE
+
+    def apply_filter():
+        nonlocal visible_rows, page_index
+        q = (search_query["value"] or "").strip().lower()
+        if not q:
+            visible_rows = list(all_rows)
+        else:
+            def _row_text(rr: tuple) -> str:
+                parts = [
+                    str(rr[1] or ""),
+                    str(rr[2] or ""),
+                    str(rr[3] or ""),
+                    str(rr[5] or "") if len(rr) > 5 else "",
+                    str(rr[7] or "") if len(rr) > 7 else "",
+                    str(rr[6] or "") if len(rr) > 6 else "",
+                ]
+                return " ".join(parts).lower()
+
+            visible_rows = [rr for rr in all_rows if q in _row_text(rr)]
+        page_index = 0
 
     def load_categorie_dropdown() -> int:
         try:
@@ -77,7 +106,6 @@ def crea_vista(page: ft.Page, current_user: dict):
             if c:
                 options_map[c] = d or c
 
-        # Fallback: categorie gia presenti nei moduli esistenti
         if not options_map:
             try:
                 mods = db.leggi_moduli_disponibili() or []
@@ -88,7 +116,6 @@ def crea_vista(page: ft.Page, current_user: dict):
                 if c and c not in options_map:
                     options_map[c] = c
 
-        # Fallback finale minimo
         if not options_map:
             options_map = {
                 "UTILY": "Utility interne",
@@ -100,7 +127,6 @@ def crea_vista(page: ft.Page, current_user: dict):
             for cod, desc in sorted(options_map.items(), key=lambda x: x[0])
         ]
 
-        # default selezione se non impostata
         if (not dd_categoria.value) and dd_categoria.options:
             dd_categoria.value = dd_categoria.options[0].key
 
@@ -154,20 +180,40 @@ def crea_vista(page: ft.Page, current_user: dict):
 
         list_host.controls = []
 
-        if not all_rows:
+        if not visible_rows:
             list_host.controls.append(
                 ft.Container(
                     padding=12,
                     border=ft.Border.all(1, ft.Colors.GREY_300),
                     border_radius=8,
                     bgcolor=ft.Colors.WHITE,
-                    content=ft.Text("Nessuna applicazione registrata. Premi 'Nuovo' per creare il primo modulo."),
+                    content=ft.Text("Nessun risultato. Prova a cambiare filtro o premi 'Ricarica'."),
                 )
             )
         else:
             start = page_index * PAGE_SIZE
             end = start + PAGE_SIZE
-            slice_rows = all_rows[start:end]
+            slice_rows = visible_rows[start:end]
+
+            list_host.controls.append(
+                ft.Container(
+                    padding=ft.padding.symmetric(horizontal=10, vertical=8),
+                    border=ft.Border(bottom=ft.BorderSide(1, ft.Colors.GREY_300)),
+                    bgcolor=ft.Colors.BLUE_GREY_50,
+                    content=ft.Row(
+                        controls=[
+                            ft.Container(ft.Text("Nome", weight=ft.FontWeight.BOLD), expand=3),
+                            ft.Container(ft.Text("Codice", weight=ft.FontWeight.BOLD), expand=2),
+                            ft.Container(ft.Text("Route", weight=ft.FontWeight.BOLD), expand=2),
+                            ft.Container(ft.Text("Cat.", weight=ft.FontWeight.BOLD), width=90),
+                            ft.Container(ft.Text("Ord.", weight=ft.FontWeight.BOLD), width=60),
+                            ft.Container(ft.Text("Stato", weight=ft.FontWeight.BOLD), width=90),
+                            ft.Container(ft.Text("Menu", weight=ft.FontWeight.BOLD), width=80),
+                            ft.Container(ft.Text("Azioni", weight=ft.FontWeight.BOLD), width=160),
+                        ],
+                    ),
+                )
+            )
 
             for r in slice_rows:
                 id_app = int(r[0])
@@ -219,44 +265,68 @@ def crea_vista(page: ft.Page, current_user: dict):
 
                 list_host.controls.append(
                     ft.Container(
-                        padding=10,
-                        border=ft.Border.all(1, ft.Colors.GREY_300),
-                        border_radius=8,
+                        padding=ft.padding.symmetric(horizontal=10, vertical=8),
+                        border=ft.Border(bottom=ft.BorderSide(1, ft.Colors.GREY_300)),
                         bgcolor=ft.Colors.WHITE,
                         content=ft.Row(
                             controls=[
-                                ft.Column(
-                                    expand=True,
-                                    spacing=2,
-                                    controls=[
-                                        ft.Text(f"{nome} ({codice})", weight=ft.FontWeight.BOLD),
-                                        ft.Text(f"Route: {route} | Ordine: {ordine} | Categoria: {categoria or '-'}", size=12),
-                                        ft.Text(f"Descrizione: {descr or '-'}", size=12, color=ft.Colors.BLUE_GREY_700),
-                                        ft.Text(
-                                            f"Icona: {icona or '-'} | Visibile menu: {'SI' if visibile else 'NO'}",
-                                            size=12,
-                                            color=ft.Colors.BLUE_GREY_700,
-                                        ),
-                                    ],
+                                ft.Container(
+                                    expand=3,
+                                    content=ft.Column(
+                                        spacing=2,
+                                        controls=[
+                                            ft.Text(nome, weight=ft.FontWeight.BOLD),
+                                            ft.Text(descr or "-", size=11, color=ft.Colors.BLUE_GREY_700),
+                                        ],
+                                    ),
                                 ),
-                                ft.Text("ATTIVA" if attiva else "DISATTIVA", color=ft.Colors.GREEN if attiva else ft.Colors.RED),
-                                ft.IconButton(icon=ft.Icons.EDIT, tooltip="Modifica", on_click=on_edit),
-                                ft.IconButton(
-                                    icon=ft.Icons.TOGGLE_ON if attiva else ft.Icons.TOGGLE_OFF,
-                                    tooltip="Attiva/Disattiva",
-                                    on_click=on_toggle_attiva,
+                                ft.Container(ft.Text(codice), expand=2),
+                                ft.Container(ft.Text(route), expand=2),
+                                ft.Container(ft.Text(categoria or "-"), width=90),
+                                ft.Container(ft.Text(str(ordine)), width=60),
+                                ft.Container(
+                                    width=90,
+                                    content=ft.Text(
+                                        "ATTIVA" if attiva else "OFF",
+                                        color=ft.Colors.GREEN_700 if attiva else ft.Colors.RED_700,
+                                        weight=ft.FontWeight.BOLD,
+                                    ),
                                 ),
-                                ft.IconButton(
-                                    icon=ft.Icons.VISIBILITY if visibile else ft.Icons.VISIBILITY_OFF,
-                                    tooltip="Mostra/Nascondi in menu",
-                                    on_click=on_toggle_visibile,
+                                ft.Container(
+                                    width=80,
+                                    content=ft.Icon(
+                                        ft.Icons.CHECK_CIRCLE if visibile else ft.Icons.REMOVE_CIRCLE_OUTLINE,
+                                        color=ft.Colors.GREEN_700 if visibile else ft.Colors.GREY_600,
+                                        size=18,
+                                    ),
                                 ),
-                            ]
+                                ft.Container(
+                                    width=160,
+                                    content=ft.Row(
+                                        spacing=0,
+                                        controls=[
+                                            ft.IconButton(icon=ft.Icons.EDIT, tooltip="Modifica", on_click=on_edit),
+                                            ft.IconButton(
+                                                icon=ft.Icons.TOGGLE_ON if attiva else ft.Icons.TOGGLE_OFF,
+                                                tooltip="Attiva/Disattiva",
+                                                on_click=on_toggle_attiva,
+                                            ),
+                                            ft.IconButton(
+                                                icon=ft.Icons.VISIBILITY if visibile else ft.Icons.VISIBILITY_OFF,
+                                                tooltip="Mostra/Nascondi in menu",
+                                                on_click=on_toggle_visibile,
+                                            ),
+                                        ],
+                                    ),
+                                ),
+                            ],
                         ),
                     )
                 )
 
-        lbl_pagina.value = f"Pagina {page_index + 1}/{tot}"
+        start_item = (page_index * PAGE_SIZE) + 1 if visible_rows else 0
+        end_item = min((page_index + 1) * PAGE_SIZE, len(visible_rows))
+        lbl_pagina.value = f"Pagina {page_index + 1}/{tot}  •  {start_item}-{end_item} di {len(visible_rows)}"
         if force_update and _mounted(list_host):
             page.update()
 
@@ -273,6 +343,7 @@ def crea_vista(page: ft.Page, current_user: dict):
             set_msg(f"Errore caricamento catalogo app: {ex}", ok=False)
 
         page_index = 0
+        apply_filter()
         render_page(force_update=force_update)
 
     def prev_page(_):
@@ -286,6 +357,11 @@ def crea_vista(page: ft.Page, current_user: dict):
         if page_index < total_pages() - 1:
             page_index += 1
             render_page(force_update=True)
+
+    def on_search_change(_):
+        search_query["value"] = tf_search.value or ""
+        apply_filter()
+        render_page(force_update=True)
 
     def save_form(_):
         codice = (tf_codice.value or "").strip()
@@ -362,6 +438,7 @@ def crea_vista(page: ft.Page, current_user: dict):
     dlg.actions_alignment = ft.MainAxisAlignment.END
     page.overlay.append(dlg)
 
+    tf_search.on_change = on_search_change
     load_rows(force_update=False)
 
     return ft.Column(
@@ -372,19 +449,18 @@ def crea_vista(page: ft.Page, current_user: dict):
             ft.Text("Catalogo moduli/applicazioni: nome, route e metadati di manutenzione."),
             ft.Row(
                 [
+                    tf_search,
                     ft.OutlinedButton("Nuovo", icon=ft.Icons.ADD, on_click=open_dialog_new),
                     ft.OutlinedButton("Ricarica", icon=ft.Icons.REFRESH, on_click=lambda e: load_rows(force_update=True)),
                 ]
             ),
             msg,
-            ft.Row(
-                [
-                    ft.OutlinedButton("Prec", on_click=prev_page),
-                    lbl_pagina,
-                    ft.OutlinedButton("Succ", on_click=next_page),
-                ],
-                alignment=ft.MainAxisAlignment.START,
-            ),
+            ft.Row([ft.Text(f"Righe per pagina: {PAGE_SIZE}", size=12, color=ft.Colors.BLUE_GREY_700)]),
+            ft.Row([
+                ft.OutlinedButton("Prec", on_click=prev_page),
+                lbl_pagina,
+                ft.OutlinedButton("Succ", on_click=next_page),
+            ]),
             ft.Divider(),
             ft.Text("Applicazioni registrate", weight=ft.FontWeight.BOLD),
             ft.Container(expand=True, bgcolor=ft.Colors.GREY_300, padding=10, border_radius=8, content=list_host),

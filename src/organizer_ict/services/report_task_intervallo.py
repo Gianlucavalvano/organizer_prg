@@ -1,10 +1,6 @@
-import base64
 import io
-import os
-import tempfile
 from datetime import datetime
 
-import fitz
 import flet as ft
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -197,76 +193,17 @@ def apri_dialog_task_intervallo(page: ft.Page):
 
         rows = _leggi_task_intervallo(data_dal, data_al)
         pdf_bytes = _genera_pdf_intervallo(data_dal, data_al, rows)
-
-        pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        pix = pdf_doc.load_page(0).get_pixmap(matrix=fitz.Matrix(2, 2))
-        src_data = f"data:image/png;base64,{base64.b64encode(pix.tobytes('png')).decode('utf-8')}"
-        pdf_doc.close()
-
-        def invia_mail(_):
-            try:
-                try:
-                    import win32com.client as win32
-                except Exception as ex:
-                    page.snack_bar = ft.SnackBar(
-                        ft.Text(f"Invio mail non disponibile (pywin32): {ex}"),
-                        bgcolor=ft.Colors.RED_700,
-                    )
-                    page.snack_bar.open = True
-                    page.update()
-                    return
-                temp_path = os.path.join(
-                    tempfile.gettempdir(),
-                    f"Task_Intervallo_{data_dal}_{data_al}.pdf",
-                )
-                with open(temp_path, "wb") as f:
-                    f.write(pdf_bytes)
-
-                outlook = win32.Dispatch("outlook.application")
-                mail = outlook.CreateItem(0)
-                mail.To = ""
-                mail.Subject = f"Task creati e chiusi nell'intervallo {data_dal} - {data_al}"
-                mail.Body = (
-                    f"In allegato il report task creati e chiusi nell'intervallo "
-                    f"{data_dal} - {data_al}.\nTotale task: {len(rows)}."
-                )
-                mail.Attachments.Add(temp_path)
-                mail.Display()
-            except Exception as ex:
-                print(f"Errore invio mail report intervallo: {ex}")
-
-        async def salva_pdf(_):
-            await stampa_api.salva_pdf_dialog(
-                page,
-                pdf_bytes,
-                f"Task_Intervallo_{data_dal}_{data_al}.pdf",
-                "Salva Report Task Intervallo",
-            )
-
-        dlg_preview = ft.AlertDialog(
-            title=ft.Text("Anteprima PDF - Task Intervallo"),
-            content=ft.Container(
-                content=ft.InteractiveViewer(content=ft.Image(src=src_data)),
-                width=760,
-                height=520,
+        stampa_api.apri_preview_flow(
+            page,
+            pdf_bytes,
+            nome_default=f"Task_Intervallo_{data_dal}_{data_al}.pdf",
+            titolo_anteprima="Task Intervallo",
+            mail_subject=f"Task creati e chiusi nell'intervallo {data_dal} - {data_al}",
+            mail_body=(
+                f"In allegato il report task creati e chiusi nell'intervallo "
+                f"{data_dal} - {data_al}.\nTotale task: {len(rows)}."
             ),
-            actions=[
-                ft.FilledButton(
-                    "Salva PDF",
-                    icon=ft.Icons.SAVE_ALT,
-                    on_click=salva_pdf,
-                ),
-                ft.FilledButton(
-                    "Invia Mail",
-                    icon=ft.Icons.SEND,
-                    on_click=invia_mail,
-                ),
-                ft.TextButton("Chiudi", on_click=lambda e: setattr(dlg_preview, "open", False) or page.update()),
-            ],
         )
-        page.overlay.append(dlg_preview)
-        dlg_preview.open = True
-        page.update()
 
     dialog = ft.AlertDialog(
         title=ft.Text("Task creati e chiusi nell'intervallo"),
@@ -299,4 +236,3 @@ def apri_dialog_task_intervallo(page: ft.Page):
     page.overlay.append(dialog)
     dialog.open = True
     page.update()
-

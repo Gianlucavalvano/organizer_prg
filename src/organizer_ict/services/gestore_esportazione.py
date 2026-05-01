@@ -1,10 +1,40 @@
 from datetime import datetime
-import os
+import io
 
 import flet as ft
 from openpyxl import Workbook
 from organizer_ict.db import handler as database
-from organizer_ict.config import get_project_root
+from organizer_ict.services.ui_action_log import log_ui_event
+from . import stampa_api
+
+
+async def _save_excel(page: ft.Page, excel_bytes: bytes, nome_file: str) -> str | None:
+    log_ui_event(
+        "global.export_excel.save_dialog",
+        "START",
+        args=(),
+        kwargs={"page": page, "current_user": getattr(database, "CURRENT_USER", None)},
+        extra={"filename": nome_file, "bytes": len(excel_bytes)},
+    )
+
+    out = await stampa_api.salva_file_dialog(
+        page=page,
+        file_bytes=excel_bytes,
+        nome_default=nome_file,
+        titolo="Salva Excel",
+        allowed_extensions=["xlsx"],
+        picker_attr="_excel_picker",
+        open_after_save=False,
+    )
+
+    log_ui_event(
+        "global.export_excel.save_dialog",
+        "OK" if out else "CANCEL",
+        args=(),
+        kwargs={"page": page, "current_user": getattr(database, "CURRENT_USER", None)},
+        extra={"result": str(out)},
+    )
+    return out
 
 
 async def esporta_struttura_excel(page: ft.Page):
@@ -43,37 +73,30 @@ async def esporta_struttura_excel(page: ft.Page):
         columns = [desc[0] for desc in cur.description]
         conn.close()
 
-        if not rows:
-            page.snack_bar = ft.SnackBar(
-                ft.Text("Non ci sono dati attivi da esportare."),
-                bgcolor=ft.Colors.AMBER_700,
-            )
-            page.snack_bar.open = True
-            page.update()
-            return
-
-        export_dir = os.path.join(get_project_root(), "exports")
-        os.makedirs(export_dir, exist_ok=True)
-        percorso = os.path.join(
-            export_dir,
-            f"Esportazione_Progetti_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-        )
-
         wb = Workbook()
         ws = wb.active
         ws.title = "Progetti"
         ws.append(columns)
         for row in rows:
             ws.append(list(row))
-        wb.save(percorso)
 
-        try:
-            os.startfile(percorso)
-        except Exception:
-            pass
+        stream = io.BytesIO()
+        wb.save(stream)
+        excel_bytes = stream.getvalue()
+
+        nome_file = f"Esportazione_Progetti_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        out = await _save_excel(page, excel_bytes, nome_file)
+        if not out:
+            page.snack_bar = ft.SnackBar(
+                ft.Text("Esportazione annullata o finestra salvataggio non disponibile."),
+                bgcolor=ft.Colors.AMBER_700,
+            )
+            page.snack_bar.open = True
+            page.update()
+            return
 
         page.snack_bar = ft.SnackBar(
-            ft.Text(f"Dati esportati correttamente in: {percorso}"),
+            ft.Text(f"Excel esportato correttamente ({len(rows)} righe)."),
             bgcolor=ft.Colors.GREEN_700,
         )
         page.snack_bar.open = True
@@ -92,4 +115,3 @@ async def esporta_struttura_excel(page: ft.Page):
                 conn.close()
         except Exception:
             pass
-

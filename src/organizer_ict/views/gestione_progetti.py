@@ -9,6 +9,7 @@ from . import gestione_archivio
 from organizer_ict.services import gestore_esportazione
 from organizer_ict.services import report_task_intervallo
 from organizer_ict.services import stampa_api
+from organizer_ict.services.ui_action_log import traccia_click, log_ui_event
 from organizer_ict.ui_helpers import formatta_data
 from . import vista_anagrafica
 from . import vista_dettaglio_progetto
@@ -146,17 +147,11 @@ class GestioneProgettiController:
         self.input_nuovo_progetto.value = ""
         self.ricarica_lista_progetti()
 
+    @traccia_click("global.stampa_progetto")
     def click_stampa_pdf(self, _, id_prog, nome_prog):
         async def _run():
             try:
-                out = await stampa_api.stampa(self.page, "progetto", pid=id_prog, nome_progetto=nome_prog)
-                if not out:
-                    return
-                self.page.snack_bar = ft.SnackBar(
-                    ft.Text("Generazione report completata."), bgcolor="green"
-                )
-                self.page.snack_bar.open = True
-                self.page.update()
+                await stampa_api.stampa(self.page, "progetto", pid=id_prog, nome_progetto=nome_prog)
             except Exception as err:
                 self.page.snack_bar = ft.SnackBar(ft.Text(f"Errore stampa: {str(err)}"), bgcolor="red")
                 self.page.snack_bar.open = True
@@ -164,6 +159,7 @@ class GestioneProgettiController:
 
         self.page.run_task(_run)
 
+    @traccia_click("global.stampa_lista")
     async def click_stampa_lista(self, _):
         try:
             await stampa_api.stampa(self.page, "lista")
@@ -172,6 +168,7 @@ class GestioneProgettiController:
             self.page.snack_bar.open = True
             self.page.update()
 
+    @traccia_click("global.stampa_dashboard")
     async def click_stampa_dashboard(self, _):
         try:
             await stampa_api.stampa(self.page, "dashboard")
@@ -180,9 +177,34 @@ class GestioneProgettiController:
             self.page.snack_bar.open = True
             self.page.update()
 
+    @traccia_click("global.export_excel")
     def click_export_excel(self, _):
-        self.page.run_task(gestore_esportazione.esporta_struttura_excel, self.page)
+        async def _run():
+            rid = "excel-" + datetime.now().strftime("%Y%m%d%H%M%S%f")
+            log_ui_event("global.export_excel.task", "START", request_id=rid, args=(self,), kwargs={"page": self.page, "current_user": self.current_user})
+            try:
+                self.page.snack_bar = ft.SnackBar(
+                    ft.Text("Preparazione esportazione Excel..."),
+                    bgcolor=ft.Colors.BLUE_700,
+                )
+                self.page.snack_bar.open = True
+                self.page.update()
 
+                await gestore_esportazione.esporta_struttura_excel(self.page)
+                log_ui_event("global.export_excel.task", "OK", request_id=rid, args=(self,), kwargs={"page": self.page, "current_user": self.current_user})
+            except Exception as ex:
+                log_ui_event("global.export_excel.task", "ERR", request_id=rid, error=ex, args=(self,), kwargs={"page": self.page, "current_user": self.current_user})
+                self.page.snack_bar = ft.SnackBar(
+                    ft.Text(f"Errore Export Excel: {ex}"),
+                    bgcolor=ft.Colors.RED_700,
+                )
+                self.page.snack_bar.open = True
+                self.page.update()
+
+        self.page.run_task(_run)
+
+
+    @traccia_click("global.controlla_attivita_scadute")
     def click_controlla_attivita_scadute(self, _):
         controllo_scadenze.apri_dialog_attivita_scadute(
             self.page,
@@ -1044,7 +1066,7 @@ class GestioneProgettiController:
 
         return ft.Column(
             controls=[
-                ft.Text("Gestione Progetti", size=24, weight="bold"),
+                ft.Text("Organizer Project", size=24, weight="bold"),
                 ft.Divider(),
                 self.build_header_progetti(),
                 self.lista_view,
@@ -1215,11 +1237,3 @@ class GestioneProgettiController:
 def crea_vista_gestione_progetti(page: ft.Page, current_user: dict | None = None):
     controller = GestioneProgettiController(page, current_user=current_user)
     return controller.create_view()
-
-
-
-
-
-
-
-

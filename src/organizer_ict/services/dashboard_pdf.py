@@ -117,7 +117,7 @@ def genera_dashboard_in_memoria():
         c.drawString(x_colonna, y_curr, "- Nessun dato extra -")
     else:
         for stato, count in dati_non_mappati:
-            c.drawString(x_colonna, y_curr, f"• {stato}: {count} Task")
+            c.drawString(x_colonna, y_curr, f"â€¢ {stato}: {count} Task")
             y_curr -= 0.6*cm
 
     # --- SEZIONE 3: GRAFICO A TORTA TASK (Aperti vs Chiusi) ---
@@ -126,7 +126,7 @@ def genera_dashboard_in_memoria():
         SELECT 
             SUM(CASE WHEN completato = 1 THEN 1 ELSE 0 END) as chiusi,
             SUM(CASE WHEN completato = 0 THEN 1 ELSE 0 END) as aperti
-        FROM task WHERE attivo = 1
+        FROM task t WHERE t.attivo = 1
     """ + owner_filter_t, owner_params_t if owner_filter_t else None)
     res = cur.fetchone()
     chiusi = res[0] or 0
@@ -178,5 +178,4 @@ if __name__ == "__main__":
     # Questo codice viene eseguito SOLO se lanci il file direttamente
     print("Avvio generazione Dashboard di test...")
     genera_dashboard()
-    print("Fatto! Controlla se si è aperta la finestra di salvataggio.")
-
+    print("Fatto! Controlla se si Ã¨ aperta la finestra di salvataggio.")

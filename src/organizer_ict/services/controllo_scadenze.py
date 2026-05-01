@@ -19,16 +19,7 @@ def apri_dialog_attivita_scadute(
     apri_progetto_callback,
     apri_task_callback,
 ):
-    rows = db.leggi_attivita_scadute()
-
-    if not rows:
-        page.snack_bar = ft.SnackBar(
-            ft.Text("Nessuna attivita scaduta trovata."),
-            bgcolor=ft.Colors.GREEN_700,
-        )
-        page.snack_bar.open = True
-        page.update()
-        return
+    rows = db.leggi_attivita_scadute() or []
 
     table_rows = []
     for tipo, id_progetto, id_task, descrizione, data_scadenza in rows:
@@ -65,39 +56,53 @@ def apri_dialog_attivita_scadute(
             )
         )
 
-    table = ft.DataTable(
-        columns=[
-            ft.DataColumn(ft.Text("Tipo")),
-            ft.DataColumn(ft.Text("Descrizione")),
-            ft.DataColumn(ft.Text("Scadenza")),
-            ft.DataColumn(ft.Text("Azione")),
-        ],
-        rows=table_rows,
-        column_spacing=24,
-        horizontal_margin=12,
-        heading_row_height=44,
-        data_row_min_height=40,
-        data_row_max_height=52,
-    )
+    content_ctrl = None
+    if table_rows:
+        table = ft.DataTable(
+            columns=[
+                ft.DataColumn(ft.Text("Tipo")),
+                ft.DataColumn(ft.Text("Descrizione")),
+                ft.DataColumn(ft.Text("Scadenza")),
+                ft.DataColumn(ft.Text("Azione")),
+            ],
+            rows=table_rows,
+            column_spacing=24,
+            horizontal_margin=12,
+            heading_row_height=44,
+            data_row_min_height=40,
+            data_row_max_height=52,
+        )
+        content_ctrl = ft.Row(
+            [
+                ft.Column(
+                    [table],
+                    expand=True,
+                    scroll=ft.ScrollMode.AUTO,
+                )
+            ],
+            scroll=ft.ScrollMode.AUTO,
+        )
+    else:
+        content_ctrl = ft.Container(
+            expand=True,
+            alignment=ft.Alignment.CENTER,
+            content=ft.Column(
+                [
+                    ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, size=44, color=ft.Colors.GREEN_700),
+                    ft.Text("Nessuna attività scaduta trovata.", color=ft.Colors.BLUE_GREY_700),
+                ],
+                tight=True,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+        )
 
     dialog = ft.AlertDialog(
         modal=False,
-        title=ft.Text("Attivita Scadute"),
+        title=ft.Text("Attività Scadute"),
         content=ft.Container(
             width=1040,
             height=520,
-            content=ft.Row(
-                [
-                    ft.Column(
-                        [
-                            table,
-                        ],
-                        expand=True,
-                        scroll=ft.ScrollMode.AUTO,
-                    )
-                ],
-                scroll=ft.ScrollMode.AUTO,
-            ),
+            content=content_ctrl,
         ),
         actions=[
             ft.TextButton(
@@ -109,4 +114,3 @@ def apri_dialog_attivita_scadute(
     page.overlay.append(dialog)
     dialog.open = True
     page.update()
-

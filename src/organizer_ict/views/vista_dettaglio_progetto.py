@@ -59,7 +59,7 @@ def _build_task_card(page, task_row, refresh_view, on_toggle_task, on_open_task_
             title=ft.Text("Conferma cancellazione task"),
             content=ft.Text(
                 f"Sei sicuro di cancellare il task '{titolo}'?\n\n"
-                "L'operazione imposterà il task come non attivo."
+                "L'operazione imposterÃ  il task come non attivo."
             ),
             actions=[
                 ft.TextButton("Annulla", on_click=lambda e: (setattr(dialog, "open", False), page.update())),
@@ -420,7 +420,7 @@ def crea_vista_dettaglio_progetto(page: ft.Page, id_progetto: int, id_task_apert
         def apri_allegato(allegato_id):
             path = db.get_allegato_abs_path(allegato_id)
             if not path or not os.path.exists(path):
-                lbl_info.value = "File non trovato su disco. Probabilmente è stato spostato o eliminato: riallega il file."
+                lbl_info.value = "File non trovato su disco. Probabilmente Ã¨ stato spostato o eliminato: riallega il file."
                 lbl_info.color = ft.Colors.RED_700
                 page.update()
                 return
@@ -505,15 +505,7 @@ def crea_vista_dettaglio_progetto(page: ft.Page, id_progetto: int, id_task_apert
         def _stampa_progetto(_):
             async def _run():
                 try:
-                    out = await stampa_api.stampa(page, "progetto", pid=p_id, nome_progetto=nome)
-                    if not out:
-                        return
-                    page.snack_bar = ft.SnackBar(
-                        ft.Text("Generazione report completata."),
-                        bgcolor=ft.Colors.GREEN_700,
-                    )
-                    page.snack_bar.open = True
-                    page.update()
+                    await stampa_api.stampa(page, "progetto", pid=p_id, nome_progetto=nome)
                 except Exception as ex:
                     page.snack_bar = ft.SnackBar(
                         ft.Text(f"Errore stampa progetto: {ex}"),
@@ -642,4 +634,3 @@ def crea_vista_dettaglio_progetto(page: ft.Page, id_progetto: int, id_task_apert
         page.run_task(_apri_task_diretto)
 
     return view
-
