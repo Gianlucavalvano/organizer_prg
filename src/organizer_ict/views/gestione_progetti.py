@@ -190,7 +190,7 @@ class GestioneProgettiController:
                 self.page.snack_bar.open = True
                 self.page.update()
 
-                await gestore_esportazione.esporta_struttura_excel(self.page)
+                await gestore_esportazione.esporta_struttura_excel(self.page, current_user=self.current_user)
                 log_ui_event("global.export_excel.task", "OK", request_id=rid, args=(self,), kwargs={"page": self.page, "current_user": self.current_user})
             except Exception as ex:
                 log_ui_event("global.export_excel.task", "ERR", request_id=rid, error=ex, args=(self,), kwargs={"page": self.page, "current_user": self.current_user})

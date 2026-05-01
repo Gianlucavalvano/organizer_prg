@@ -21,6 +21,12 @@ PERM_APP_GESTIONE_OPEN = "APP_GESTIONE_OPEN"
 router = APIRouter(tags=["progetti-task"])
 
 
+def ensure_progetti_data_inserimento(conn: Connection):
+    with conn.cursor() as cur:
+        cur.execute("ALTER TABLE progetti ADD COLUMN IF NOT EXISTS data_inserimento TEXT")
+    conn.commit()
+
+
 @router.get("/progetti")
 @with_api_logging("progetti.list")
 @require_permission(PERM_APP_GESTIONE_OPEN)
@@ -28,11 +34,13 @@ def list_progetti(
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
+    ensure_progetti_data_inserimento(conn)
     sql = """
         SELECT
             p.id_progetto,
             p.nome_progetto,
             p.note,
+            p.data_inserimento,
             p.id_stato,
             p.percentuale_avanzamento,
             p.attivo,
@@ -58,12 +66,13 @@ def list_progetti(
             "id_progetto": r[0],
             "nome_progetto": r[1],
             "note": r[2],
-            "id_stato": r[3],
-            "percentuale_avanzamento": r[4],
-            "attivo": r[5],
-            "archiviato": r[6],
-            "data_chiusura": r[7],
-            "owner_user_id": r[8],
+            "data_inserimento": r[3],
+            "id_stato": r[4],
+            "percentuale_avanzamento": r[5],
+            "attivo": r[6],
+            "archiviato": r[7],
+            "data_chiusura": r[8],
+            "owner_user_id": r[9],
         }
         for r in rows
     ]
@@ -77,6 +86,7 @@ def create_progetto(
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
+    ensure_progetti_data_inserimento(conn)
     nome = (payload.nome_progetto or "").strip()
     if not nome:
         raise HTTPException(status_code=400, detail="nome_progetto obbligatorio")
@@ -106,24 +116,27 @@ def create_progetto(
                 (owner_id,),
             )
         next_order = int((cur.fetchone() or [0])[0] or 0) + 1
+        now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         cur.execute(
             """
             INSERT INTO progetti (
                 nome_progetto,
                 note,
+                data_inserimento,
                 id_stato,
                 percentuale_avanzamento,
                 attivo,
                 ordine_manuale,
                 owner_user_id
             )
-            VALUES (%s, %s, %s, %s, 1, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, 1, %s, %s)
             RETURNING id_progetto
             """,
             (
                 nome,
                 payload.note or "",
+                now_ts,
                 int(payload.id_stato or 1),
                 int(payload.percentuale_avanzamento or 0),
                 next_order,
@@ -133,8 +146,12 @@ def create_progetto(
         new_id = int(cur.fetchone()[0])
 
     conn.commit()
-    return {"id_progetto": new_id, "nome_progetto": nome, "owner_user_id": owner_id}
-
+    return {
+        "id_progetto": new_id,
+        "nome_progetto": nome,
+        "data_inserimento": now_ts,
+        "owner_user_id": owner_id,
+    }
 
 @router.put("/progetti/{id_progetto}")
 @with_api_logging("progetti.update")
@@ -216,6 +233,7 @@ def list_task(
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
+    ensure_progetti_data_inserimento(conn)
     sql = """
         SELECT
             t.id_task,

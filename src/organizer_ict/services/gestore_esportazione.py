@@ -8,12 +8,12 @@ from organizer_ict.services.ui_action_log import log_ui_event
 from . import stampa_api
 
 
-async def _save_excel(page: ft.Page, excel_bytes: bytes, nome_file: str) -> str | None:
+async def _save_excel(page: ft.Page, excel_bytes: bytes, nome_file: str, current_user: dict | None = None) -> str | None:
     log_ui_event(
         "global.export_excel.save_dialog",
         "START",
         args=(),
-        kwargs={"page": page, "current_user": getattr(database, "CURRENT_USER", None)},
+        kwargs={"page": page, "current_user": current_user},
         extra={"filename": nome_file, "bytes": len(excel_bytes)},
     )
 
@@ -31,18 +31,21 @@ async def _save_excel(page: ft.Page, excel_bytes: bytes, nome_file: str) -> str 
         "global.export_excel.save_dialog",
         "OK" if out else "CANCEL",
         args=(),
-        kwargs={"page": page, "current_user": getattr(database, "CURRENT_USER", None)},
+        kwargs={"page": page, "current_user": current_user},
         extra={"result": str(out)},
     )
     return out
 
 
-async def esporta_struttura_excel(page: ft.Page):
+async def esporta_struttura_excel(page: ft.Page, current_user: dict | None = None):
     """Estrae i dati attivi dal DB e li salva in un file Excel."""
     conn = None
     try:
         conn = database.connetti()
-        owner_filter_t, owner_params_t = database.owner_filter_sql("t")
+        cur = conn.cursor()
+        cur.execute("ALTER TABLE progetti ADD COLUMN IF NOT EXISTS data_inserimento TEXT")
+        conn.commit()
+        owner_filter_p, owner_params_p = database.owner_filter_sql("p")
 
         query = f"""
         SELECT
@@ -57,21 +60,36 @@ async def esporta_struttura_excel(page: ft.Page):
             st_t.nome_stato AS "STATO TASK",
             r.nome || ' ' || r.cognome AS "RISORSA ASSEGNATA",
             t.data_completato AS "DATA CHIUSURA TASK"
-        FROM task t
-        JOIN progetti p ON t.id_progetto = p.id_progetto
+        FROM progetti p
+        LEFT JOIN task t ON t.id_progetto = p.id_progetto AND t.attivo = 1
         LEFT JOIN risorse r ON t.id_risorsa = r.id_risorsa
         LEFT JOIN tab_stati st_p ON p.id_stato = st_p.id_stato
         LEFT JOIN tab_stati st_t ON t.id_stato = st_t.id_stato
-        WHERE p.attivo = 1 AND t.attivo = 1
-          {owner_filter_t}
+        WHERE p.attivo = 1
+          AND (p.archiviato = 0 OR p.archiviato IS NULL)
+          {owner_filter_p}
         ORDER BY p.nome_progetto, t.id_task
         """
 
+        log_ui_event(
+            "global.export_excel.sql",
+            "START",
+            args=(),
+            kwargs={"page": page, "current_user": current_user},
+        )
         cur = conn.cursor()
-        cur.execute(query, owner_params_t if owner_filter_t else None)
+        cur.execute(query, owner_params_p if owner_filter_p else None)
         rows = cur.fetchall()
         columns = [desc[0] for desc in cur.description]
         conn.close()
+        conn = None
+        log_ui_event(
+            "global.export_excel.sql",
+            "OK",
+            args=(),
+            kwargs={"page": page, "current_user": current_user},
+            extra={"rows": len(rows)},
+        )
 
         wb = Workbook()
         ws = wb.active
@@ -85,7 +103,7 @@ async def esporta_struttura_excel(page: ft.Page):
         excel_bytes = stream.getvalue()
 
         nome_file = f"Esportazione_Progetti_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-        out = await _save_excel(page, excel_bytes, nome_file)
+        out = await _save_excel(page, excel_bytes, nome_file, current_user=current_user)
         if not out:
             page.snack_bar = ft.SnackBar(
                 ft.Text("Esportazione annullata o finestra salvataggio non disponibile."),
@@ -103,12 +121,20 @@ async def esporta_struttura_excel(page: ft.Page):
         page.update()
 
     except Exception as e:
+        log_ui_event(
+            "global.export_excel.service",
+            "ERR",
+            error=e,
+            args=(),
+            kwargs={"page": page, "current_user": current_user},
+        )
         page.snack_bar = ft.SnackBar(
             ft.Text(f"Errore Esportazione: {e}"),
             bgcolor=ft.Colors.RED_700,
         )
         page.snack_bar.open = True
         page.update()
+        raise
     finally:
         try:
             if conn:
