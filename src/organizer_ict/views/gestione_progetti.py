@@ -15,7 +15,6 @@ from . import vista_anagrafica
 from . import vista_dettaglio_progetto
 from . import vista_ruoli
 from . import vista_setting
-from . import vista_utenti
 from organizer_ict.integrations import ore_progetto_bridge
 
 
@@ -1124,8 +1123,6 @@ class GestioneProgettiController:
             self.area_contenuto.content = vista_anagrafica.get_contenuto_anagrafica(self.page)
         elif key == "ruoli":
             self.area_contenuto.content = vista_ruoli.get_contenuto_ruoli(self.page)
-        elif key == "utenti":
-            self.area_contenuto.content = vista_utenti.crea_vista_utenti(self.page, self.current_user)
         elif key == "archivio":
             self.area_contenuto.content = gestione_archivio.crea_vista_archivio(self.page)
         elif key == "note":
@@ -1138,7 +1135,6 @@ class GestioneProgettiController:
         self.area_contenuto.update()
 
     def build_sidebar(self):
-        is_admin = (self.current_user.get("ruolo") == "ADMIN")
         self.nav_keys = ["progetti", "task", "anagrafica", "ruoli"]
         destinations = [
             ft.NavigationRailDestination(
@@ -1163,15 +1159,6 @@ class GestioneProgettiController:
             ),
         ]
 
-        if is_admin:
-            self.nav_keys.append("utenti")
-            destinations.append(
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.MANAGE_ACCOUNTS_OUTLINED,
-                    selected_icon=ft.Icons.MANAGE_ACCOUNTS,
-                    label="Utenti",
-                )
-            )
 
         if self._has_app("ORE_PROGETTO"):
             self.nav_keys.append("ore_progetto")

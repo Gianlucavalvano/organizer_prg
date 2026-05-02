@@ -21,7 +21,7 @@ def crea_vista(page: ft.Page, current_user: dict):
     utenti = db.leggi_utenti()
     utenti_by_id = {int(u[0]): u for u in utenti}
     utente_options = [
-        ft.dropdown.Option(key=str(u[0]), text=f"{u[1]} ({u[2]})")
+        ft.dropdown.Option(key=str(u[0]), text=f"{u[1]} ({u[5]})")
         for u in utenti
     ]
 

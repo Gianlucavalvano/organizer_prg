@@ -89,39 +89,18 @@ def apps_me(
     ensure_utenti_applicazioni_table(conn)
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT COUNT(*) FROM utenti_applicazioni WHERE id_utente = %s",
+            """
+            SELECT a.codice, a.nome, a.route
+            FROM utenti_applicazioni ua
+            JOIN applicazioni a ON a.id_app = ua.id_app
+            WHERE ua.id_utente = %s
+              AND ua.attivo = TRUE
+              AND a.attiva = TRUE
+              AND COALESCE(a.visibile_menu, TRUE) = TRUE
+            ORDER BY COALESCE(a.ordine_menu, 1000) ASC, a.nome ASC
+            """,
             (user.id_utente,),
         )
-        has_explicit = int(cur.fetchone()[0] or 0) > 0
-
-        if has_explicit:
-            cur.execute(
-                """
-                SELECT a.codice, a.nome, a.route
-                FROM utenti_applicazioni ua
-                JOIN applicazioni a ON a.id_app = ua.id_app
-                WHERE ua.id_utente = %s
-                  AND ua.attivo = TRUE
-                  AND a.attiva = TRUE
-                ORDER BY a.nome ASC
-                """,
-                (user.id_utente,),
-            )
-            rows = cur.fetchall()
-        else:
-            cur.execute(
-                """
-                SELECT DISTINCT a.codice, a.nome, a.route
-                FROM applicazioni a
-                JOIN applicazioni_permessi ap ON ap.id_app = a.id_app
-                JOIN ruoli_permessi rp ON rp.id_permesso = ap.id_permesso
-                JOIN utenti_ruoli ur ON ur.id_ruolo = rp.id_ruolo
-                WHERE a.attiva = TRUE
-                  AND ur.id_utente = %s
-                ORDER BY a.nome ASC
-                """,
-                (user.id_utente,),
-            )
-            rows = cur.fetchall()
+        rows = cur.fetchall()
 
     return [{"codice": r[0], "nome": r[1], "route": r[2]} for r in rows]

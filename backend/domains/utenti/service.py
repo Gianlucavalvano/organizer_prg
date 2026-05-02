@@ -8,11 +8,21 @@ def normalize_ruolo(ruolo: str | None) -> str:
     return out
 
 
+def ensure_utenti_profile_columns(conn: Connection):
+    with conn.cursor() as cur:
+        cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS nome VARCHAR(120)")
+        cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS cognome VARCHAR(120)")
+        cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS email VARCHAR(180)")
+    conn.commit()
+
+
 def list_utenti(conn: Connection) -> list[dict]:
+    ensure_utenti_profile_columns(conn)
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT id_utente, username, ruolo, attivo, created_at
+            SELECT id_utente, username, COALESCE(nome, ''), COALESCE(cognome, ''),
+                   COALESCE(email, ''), ruolo, attivo, created_at
             FROM utenti
             ORDER BY username ASC
             """
@@ -22,9 +32,12 @@ def list_utenti(conn: Connection) -> list[dict]:
         {
             "id_utente": r[0],
             "username": r[1],
-            "ruolo": r[2],
-            "attivo": bool(r[3]),
-            "created_at": r[4],
+            "nome": r[2],
+            "cognome": r[3],
+            "email": r[4],
+            "ruolo": r[5],
+            "attivo": bool(r[6]),
+            "created_at": r[7],
         }
         for r in rows
     ]
@@ -35,23 +48,30 @@ def create_or_update_utente(
     *,
     username: str,
     password_hash: str,
+    nome: str,
+    cognome: str,
+    email: str,
     ruolo: str,
     attivo: bool,
 ) -> int:
+    ensure_utenti_profile_columns(conn)
     attivo_db = 1 if bool(attivo) else 0
     with conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO utenti (username, password_hash, ruolo, attivo)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO utenti (username, password_hash, nome, cognome, email, ruolo, attivo)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (username)
             DO UPDATE SET
                 password_hash = EXCLUDED.password_hash,
+                nome = EXCLUDED.nome,
+                cognome = EXCLUDED.cognome,
+                email = EXCLUDED.email,
                 ruolo = EXCLUDED.ruolo,
                 attivo = EXCLUDED.attivo
             RETURNING id_utente
             """,
-            (username, password_hash, ruolo, attivo_db),
+            (username, password_hash, nome, cognome, email, ruolo, attivo_db),
         )
         uid = int(cur.fetchone()[0])
 

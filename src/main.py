@@ -5,6 +5,7 @@ import httpx
 
 import db_handler_progetti as db
 import organizer_ict
+import ore_progetto
 import sezione_as400
 import administrator_menu
 from config import get_api_base_url
@@ -237,6 +238,9 @@ def main(page: ft.Page):
                 (
                     r.get("id_utente"),
                     r.get("username"),
+                    r.get("nome") or "",
+                    r.get("cognome") or "",
+                    r.get("email") or "",
                     r.get("ruolo") or "USER",
                     1 if r.get("attivo") else 0,
                     r.get("created_at") or "",
@@ -246,13 +250,16 @@ def main(page: ft.Page):
         except Exception:
             return orig_leggi_utenti()
 
-    def _api_crea_o_aggiorna_utente(username, password, ruolo="USER", attivo=1):
+    def _api_crea_o_aggiorna_utente(username, password, ruolo="USER", attivo=1, nome="", cognome="", email=""):
         if not current_token:
-            return orig_crea_o_aggiorna_utente(username, password, ruolo, attivo)
+            return orig_crea_o_aggiorna_utente(username, password, ruolo, attivo, nome, cognome, email)
         try:
             payload = {
                 "username": username,
                 "password": password,
+                "nome": nome,
+                "cognome": cognome,
+                "email": email,
                 "ruolo": ruolo,
                 "attivo": bool(attivo),
             }
@@ -1177,6 +1184,46 @@ def main(page: ft.Page):
             page.snack_bar.open = True
             page.update()
 
+    def apri_finestra_ore_progetto(_):
+        nonlocal current_user
+        if not current_user:
+            render_login()
+            return
+        try:
+            vista = ore_progetto.crea_vista_ore_progetto(page, current_user=current_user)
+
+            def torna_menu(_):
+                if len(page.views) > 1:
+                    page.views.pop()
+                page.update()
+
+            nuova_pagina = ft.View(
+                route="/ore-progetto",
+                controls=[
+                    ft.SafeArea(
+                        expand=True,
+                        content=ft.Column(
+                            controls=[
+                                ft.Row(
+                                    [
+                                        ft.IconButton(ft.Icons.ARROW_BACK, on_click=torna_menu),
+                                        ft.Text("Ore Progetto", size=24),
+                                    ]
+                                ),
+                                vista,
+                            ],
+                            expand=True,
+                        ),
+                    )
+                ],
+            )
+            page.views.append(nuova_pagina)
+            page.update()
+        except Exception as ex:
+            page.snack_bar = ft.SnackBar(ft.Text(f"Errore apertura Ore Progetto: {ex}"), bgcolor=ft.Colors.RED_700)
+            page.snack_bar.open = True
+            page.update()
+
     def apri_administrator_menu(_):
         nonlocal current_user
         if not current_user:
@@ -1203,18 +1250,26 @@ def main(page: ft.Page):
             render_login()
             return
 
-        codes = {a.get("codice") for a in current_apps}
-        if not codes:
-            if _has_perm(PERM_APP_AS400_OPEN):
-                codes.add("AS400")
-            if _has_perm(PERM_APP_GESTIONE_OPEN):
-                codes.add("GESTIONE")
+        module_handlers = {
+            "AS400": {"label": "AS400", "icon": ft.Icons.COMPUTER, "handler": apri_finestra_as400},
+            "GESTIONE": {"label": "Organizer ICT", "icon": ft.Icons.DASHBOARD_CUSTOMIZE, "handler": apri_finestra_progetti},
+            "ORE_PROGETTO": {"label": "Ore Progetto", "icon": ft.Icons.ACCESS_TIME, "handler": apri_finestra_ore_progetto},
+        }
 
         bottoni = []
-        if "AS400" in codes:
-            bottoni.append(ft.FilledButton("AS400", icon=ft.Icons.COMPUTER, width=280, on_click=apri_finestra_as400))
-        if "GESTIONE" in codes:
-            bottoni.append(ft.FilledButton("Organizer ICT", icon=ft.Icons.DASHBOARD_CUSTOMIZE, width=280, on_click=apri_finestra_progetti))
+        for app in current_apps:
+            code = str(app.get("codice") or "").strip().upper()
+            info = module_handlers.get(code)
+            if not info:
+                continue
+            bottoni.append(
+                ft.FilledButton(
+                    info["label"],
+                    icon=info["icon"],
+                    width=280,
+                    on_click=info["handler"],
+                )
+            )
 
         ruolo = (current_user.get("ruolo") or "").upper()
         ruoli = [str(r).upper() for r in (current_user.get("ruoli") or [])]

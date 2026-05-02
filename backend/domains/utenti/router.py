@@ -47,6 +47,9 @@ def utenti_create_or_update(
         conn,
         username=uname,
         password_hash=str(password_hash or ""),
+        nome=(payload.nome or "").strip(),
+        cognome=(payload.cognome or "").strip(),
+        email=(payload.email or "").strip(),
         ruolo=ruolo,
         attivo=bool(payload.attivo),
     )

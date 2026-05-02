@@ -9,6 +9,9 @@ def crea_vista_utenti(page: ft.Page, current_user: dict):
     tabella = ft.DataTable(
         columns=[
             ft.DataColumn(ft.Text("Username")),
+            ft.DataColumn(ft.Text("Nome")),
+            ft.DataColumn(ft.Text("Cognome")),
+            ft.DataColumn(ft.Text("Email")),
             ft.DataColumn(ft.Text("Ruolo")),
             ft.DataColumn(ft.Text("Attivo")),
             ft.DataColumn(ft.Text("Creato")),
@@ -55,7 +58,7 @@ def crea_vista_utenti(page: ft.Page, current_user: dict):
 
     def ricarica():
         tabella.rows.clear()
-        for uid, username, ruolo, attivo, created_at in db.leggi_utenti():
+        for uid, username, nome, cognome, email, ruolo, attivo, created_at in db.leggi_utenti():
             if not is_admin:
                 continue
 
@@ -76,6 +79,9 @@ def crea_vista_utenti(page: ft.Page, current_user: dict):
             row = ft.DataRow(
                 cells=[
                     ft.DataCell(ft.Text(username)),
+                    ft.DataCell(ft.Text(nome or "-")),
+                    ft.DataCell(ft.Text(cognome or "-")),
+                    ft.DataCell(ft.Text(email or "-")),
                     ft.DataCell(ruolo_dd),
                     ft.DataCell(
                         ft.Switch(

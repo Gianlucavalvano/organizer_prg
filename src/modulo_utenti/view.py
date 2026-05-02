@@ -1,4 +1,4 @@
-﻿import flet as ft
+import flet as ft
 
 import db_handler_progetti as db
 
@@ -9,6 +9,9 @@ def crea_vista(page: ft.Page, current_user: dict):
     tabella = ft.DataTable(
         columns=[
             ft.DataColumn(ft.Text("Username")),
+            ft.DataColumn(ft.Text("Nome")),
+            ft.DataColumn(ft.Text("Cognome")),
+            ft.DataColumn(ft.Text("Email")),
             ft.DataColumn(ft.Text("Ruolo")),
             ft.DataColumn(ft.Text("Attivo")),
             ft.DataColumn(ft.Text("Creato")),
@@ -18,6 +21,9 @@ def crea_vista(page: ft.Page, current_user: dict):
     )
 
     t_user = ft.TextField(label="Nuovo username", width=220)
+    t_nome = ft.TextField(label="Nome", width=180)
+    t_cognome = ft.TextField(label="Cognome", width=180)
+    t_email = ft.TextField(label="Email", width=240)
     t_pwd = ft.TextField(label="Password", width=220, password=True, can_reveal_password=True)
     dd_ruolo = ft.Dropdown(
         label="Ruolo",
@@ -55,7 +61,7 @@ def crea_vista(page: ft.Page, current_user: dict):
 
     def ricarica():
         tabella.rows.clear()
-        for uid, username, ruolo, attivo, created_at in db.leggi_utenti():
+        for uid, username, nome, cognome, email, ruolo, attivo, created_at in db.leggi_utenti():
             if not is_admin:
                 continue
 
@@ -76,6 +82,9 @@ def crea_vista(page: ft.Page, current_user: dict):
             row = ft.DataRow(
                 cells=[
                     ft.DataCell(ft.Text(username)),
+                    ft.DataCell(ft.Text(nome or "-")),
+                    ft.DataCell(ft.Text(cognome or "-")),
+                    ft.DataCell(ft.Text(email or "-")),
                     ft.DataCell(ruolo_dd),
                     ft.DataCell(
                         ft.Switch(
@@ -96,7 +105,7 @@ def crea_vista(page: ft.Page, current_user: dict):
                                     "Reset password",
                                     icon=ft.Icons.LOCK_RESET,
                                     on_click=lambda _, i=uid, u=username: apri_reset_pwd(i, u),
-                                )
+                                ),
                             ],
                             tight=True,
                         )
@@ -115,10 +124,16 @@ def crea_vista(page: ft.Page, current_user: dict):
             t_pwd.value or "",
             dd_ruolo.value or "USER",
             1,
+            t_nome.value or "",
+            t_cognome.value or "",
+            t_email.value or "",
         )
         set_msg(msg, ok)
         if ok:
             t_user.value = ""
+            t_nome.value = ""
+            t_cognome.value = ""
+            t_email.value = ""
             t_pwd.value = ""
             dd_ruolo.value = "USER"
             ricarica()
@@ -146,6 +161,9 @@ def crea_vista(page: ft.Page, current_user: dict):
                 content=ft.Row(
                     [
                         t_user,
+                        t_nome,
+                        t_cognome,
+                        t_email,
                         t_pwd,
                         dd_ruolo,
                         ft.FilledButton("Crea/aggiorna", icon=ft.Icons.SAVE, on_click=crea_utente),

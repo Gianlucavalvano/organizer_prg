@@ -4,6 +4,9 @@ from pydantic import BaseModel
 class UserCreateIn(BaseModel):
     username: str
     password: str
+    nome: str = ""
+    cognome: str = ""
+    email: str = ""
     ruolo: str = "USER"
     attivo: bool = True
 
