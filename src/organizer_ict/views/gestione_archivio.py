@@ -89,63 +89,25 @@ def crea_vista_archivio(page: ft.Page):
 
     # --- Funzione helper per generare i task (SOLO LETTURA) ---
     def generatore_task_readonly(id_progetto, container_padre):
-        conn = db.connetti()
-        cursor = conn.cursor()
-        owner_filter_t, owner_params_t = db.owner_filter_sql("t")
+        tasks = db.leggi_tasks_archivio_readonly(id_progetto)
+        figli_per_parent = {}
+        for t in tasks:
+            parent_id = t[6] if len(t) > 6 else None
+            figli_per_parent.setdefault(parent_id, []).append(t)
 
         def _estrai_gerarchia_readonly(parent_id, livello):
-            # PostgreSQL: non usare "IS ?". Separiamo i due casi.
-            if parent_id is None:
-                q = (
-                    """
-                    SELECT t.id_task, t.titolo, t.tipo_task, t.data_fine, t.percentuale_avanzamento, t.completato
-                    FROM task t
-                    WHERE t.id_progetto = ?
-                      AND t.id_parent IS NULL
-                      AND t.attivo = 1
-                    """
-                    + owner_filter_t
-                    + """
-                    ORDER BY t.data_inserimento ASC
-                    """
-                )
-                params = (id_progetto,)
-            else:
-                q = (
-                    """
-                    SELECT t.id_task, t.titolo, t.tipo_task, t.data_fine, t.percentuale_avanzamento, t.completato
-                    FROM task t
-                    WHERE t.id_progetto = ?
-                      AND t.id_parent = ?
-                      AND t.attivo = 1
-                    """
-                    + owner_filter_t
-                    + """
-                    ORDER BY t.data_inserimento ASC
-                    """
-                )
-                params = (id_progetto, parent_id)
+            for t in figli_per_parent.get(parent_id, []):
+                t_id, t_titolo, t_tipo, t_data_fine, t_perc, t_compl = t[:6]
 
-            if owner_filter_t:
-                params = params + owner_params_t
-
-            cursor.execute(q, params)
-            tasks = cursor.fetchall()
-
-            for t in tasks:
-                t_id, t_titolo, t_tipo, t_data_fine, t_perc, t_compl = t
-
-                # Icona stato
                 icona = ft.Icons.CIRCLE_OUTLINED
                 colore_icona = "grey"
                 if t_compl == 1:
                     icona = ft.Icons.CHECK_CIRCLE
                     colore_icona = "green"
-                elif t_tipo == 3:  # Nota
+                elif t_tipo == 3:
                     icona = ft.Icons.NOTES
                     colore_icona = "blue"
 
-                # Riga Task Semplice
                 riga = ft.Row(
                     controls=[
                         ft.Container(width=20 * livello),
@@ -166,12 +128,9 @@ def crea_vista_archivio(page: ft.Page):
                 )
 
                 container_padre.controls.append(riga)
-
-                # Ricorsione
                 _estrai_gerarchia_readonly(t_id, livello + 1)
 
         _estrai_gerarchia_readonly(None, 0)
-        conn.close()
 
     # Avvio iniziale
     ricarica_archivio()

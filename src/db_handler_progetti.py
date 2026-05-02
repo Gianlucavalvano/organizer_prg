@@ -1575,6 +1575,33 @@ def leggi_progetti_archiviati():
     finally:
         conn.close()
 
+
+def leggi_tasks_archivio_readonly(id_progetto):
+    conn = connetti()
+    cur = conn.cursor()
+    uid = _current_user_id()
+    owner_filter = " AND t.owner_user_id = ?" if (uid is not None and not _is_admin()) else ""
+    sql = f"""
+        SELECT
+            t.id_task,
+            t.titolo,
+            t.tipo_task,
+            t.data_fine,
+            t.percentuale_avanzamento,
+            t.completato,
+            t.id_parent
+        FROM task t
+        WHERE t.id_progetto = ?
+          AND t.attivo = 1
+          {owner_filter}
+        ORDER BY t.data_inserimento ASC, t.id_task ASC
+    """
+    params = (id_progetto, uid) if owner_filter else (id_progetto,)
+    cur.execute(sql, params)
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
 def ripristina_progetto_db(id_prog):
     """Riporta un progetto e i suoi task in 'Gestione' (archiviato = 0)"""
     conn = connetti()

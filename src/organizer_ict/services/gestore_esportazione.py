@@ -2,8 +2,9 @@ from datetime import datetime
 import io
 
 import flet as ft
+import httpx
 from openpyxl import Workbook
-from organizer_ict.db import handler as database
+from config import get_api_base_url
 from organizer_ict.services.ui_action_log import log_ui_event
 from . import stampa_api
 
@@ -38,65 +39,42 @@ async def _save_excel(page: ft.Page, excel_bytes: bytes, nome_file: str, current
 
 
 async def esporta_struttura_excel(page: ft.Page, current_user: dict | None = None):
-    """Estrae i dati attivi dal DB e li salva in un file Excel."""
-    conn = None
+    """Richiede i dati al backend API e li salva in un file Excel."""
     try:
-        conn = database.connetti()
-        cur = conn.cursor()
-        cur.execute("ALTER TABLE progetti ADD COLUMN IF NOT EXISTS data_inserimento TEXT")
-        cur.execute("ALTER TABLE progetti ADD COLUMN IF NOT EXISTS ticket_interno VARCHAR(20)")
-        cur.execute("ALTER TABLE progetti ADD COLUMN IF NOT EXISTS ticket_esterno VARCHAR(20)")
-        cur.execute("ALTER TABLE task ADD COLUMN IF NOT EXISTS ticket_interno VARCHAR(20)")
-        cur.execute("ALTER TABLE task ADD COLUMN IF NOT EXISTS ticket_esterno VARCHAR(20)")
-        conn.commit()
-        owner_filter_p, owner_params_p = database.owner_filter_sql("p")
+        token = (current_user or {}).get("access_token")
+        if not token:
+            raise RuntimeError("Token API non disponibile: esci e rientra nell'applicazione.")
 
-        query = f"""
-        SELECT
-            p.nome_progetto AS "PROGETTO",
-            COALESCE(p.ticket_interno, '') AS "TICKET INTERNO PROGETTO",
-            COALESCE(p.ticket_esterno, '') AS "TICKET ESTERNO PROGETTO",
-            p.note AS "NOTE PROGETTO",
-            p.data_inserimento AS "DATA INSERIMENTO PROGETTO",
-            st_p.nome_stato AS "STATO PROGETTO",
-            t.titolo AS "DESCRIZIONE TASK / NOTE",
-            COALESCE(t.ticket_interno, '') AS "TICKET INTERNO TASK",
-            COALESCE(t.ticket_esterno, '') AS "TICKET ESTERNO TASK",
-            t.data_inizio AS "INIZIO TASK",
-            t.data_fine AS "SCADENZA TASK",
-            t.percentuale_avanzamento AS "% AVANZAMENTO",
-            st_t.nome_stato AS "STATO TASK",
-            r.nome || ' ' || r.cognome AS "RISORSA ASSEGNATA",
-            t.data_completato AS "DATA CHIUSURA TASK"
-        FROM progetti p
-        LEFT JOIN task t ON t.id_progetto = p.id_progetto AND t.attivo = 1
-        LEFT JOIN risorse r ON t.id_risorsa = r.id_risorsa
-        LEFT JOIN tab_stati st_p ON p.id_stato = st_p.id_stato
-        LEFT JOIN tab_stati st_t ON t.id_stato = st_t.id_stato
-        WHERE p.attivo = 1
-          AND (p.archiviato = 0 OR p.archiviato IS NULL)
-          {owner_filter_p}
-        ORDER BY p.nome_progetto, t.id_task
-        """
-
+        api_base_url = get_api_base_url()
         log_ui_event(
-            "global.export_excel.sql",
+            "global.export_excel.api",
             "START",
             args=(),
             kwargs={"page": page, "current_user": current_user},
+            extra={"url": f"{api_base_url}/reports/export/progetti-task"},
         )
-        cur = conn.cursor()
-        cur.execute(query, owner_params_p if owner_filter_p else None)
-        rows = cur.fetchall()
-        columns = [desc[0] for desc in cur.description]
-        conn.close()
-        conn = None
+
+        with httpx.Client(timeout=30.0) as client:
+            res = client.get(
+                f"{api_base_url}/reports/export/progetti-task",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        if res.status_code != 200:
+            try:
+                detail = res.json().get("detail")
+            except Exception:
+                detail = res.text
+            raise RuntimeError(f"Errore API export Excel: {detail}")
+
+        payload = res.json()
+        columns = payload.get("columns") or []
+        rows = payload.get("rows") or []
         log_ui_event(
-            "global.export_excel.sql",
+            "global.export_excel.api",
             "OK",
             args=(),
             kwargs={"page": page, "current_user": current_user},
-            extra={"rows": len(rows)},
+            extra={"rows": len(rows), "columns": len(columns)},
         )
 
         wb = Workbook()
@@ -143,9 +121,3 @@ async def esporta_struttura_excel(page: ft.Page, current_user: dict | None = Non
         page.snack_bar.open = True
         page.update()
         raise
-    finally:
-        try:
-            if conn:
-                conn.close()
-        except Exception:
-            pass

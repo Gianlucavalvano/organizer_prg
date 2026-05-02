@@ -20,6 +20,76 @@ PERM_APP_GESTIONE_OPEN = "APP_GESTIONE_OPEN"
 router = APIRouter(tags=["organizer-ict"])
 
 
+@router.get("/reports/export/progetti-task")
+@with_api_logging("reports.export.progetti_task")
+@require_permission(PERM_APP_GESTIONE_OPEN)
+def export_progetti_task(
+    user: AuthUser = Depends(get_current_user),
+    conn: Connection = Depends(get_db_connection),
+):
+    columns = [
+        "PROGETTO",
+        "TICKET INTERNO PROGETTO",
+        "TICKET ESTERNO PROGETTO",
+        "NOTE PROGETTO",
+        "DATA INSERIMENTO PROGETTO",
+        "STATO PROGETTO",
+        "DESCRIZIONE TASK / NOTE",
+        "TICKET INTERNO TASK",
+        "TICKET ESTERNO TASK",
+        "INIZIO TASK",
+        "SCADENZA TASK",
+        "% AVANZAMENTO",
+        "STATO TASK",
+        "RISORSA ASSEGNATA",
+        "DATA CHIUSURA TASK",
+    ]
+
+    with conn.cursor() as cur:
+        cur.execute("ALTER TABLE progetti ADD COLUMN IF NOT EXISTS data_inserimento TEXT")
+        cur.execute("ALTER TABLE progetti ADD COLUMN IF NOT EXISTS ticket_interno VARCHAR(20)")
+        cur.execute("ALTER TABLE progetti ADD COLUMN IF NOT EXISTS ticket_esterno VARCHAR(20)")
+        cur.execute("ALTER TABLE task ADD COLUMN IF NOT EXISTS ticket_interno VARCHAR(20)")
+        cur.execute("ALTER TABLE task ADD COLUMN IF NOT EXISTS ticket_esterno VARCHAR(20)")
+        conn.commit()
+
+        sql = """
+            SELECT
+                p.nome_progetto,
+                COALESCE(p.ticket_interno, ''),
+                COALESCE(p.ticket_esterno, ''),
+                p.note,
+                p.data_inserimento,
+                st_p.nome_stato,
+                t.titolo,
+                COALESCE(t.ticket_interno, ''),
+                COALESCE(t.ticket_esterno, ''),
+                t.data_inizio,
+                t.data_fine,
+                t.percentuale_avanzamento,
+                st_t.nome_stato,
+                TRIM(COALESCE(r.nome, '') || ' ' || COALESCE(r.cognome, '')),
+                t.data_completato
+            FROM progetti p
+            LEFT JOIN task t ON t.id_progetto = p.id_progetto AND t.attivo = 1
+            LEFT JOIN risorse r ON t.id_risorsa = r.id_risorsa
+            LEFT JOIN tab_stati st_p ON p.id_stato = st_p.id_stato
+            LEFT JOIN tab_stati st_t ON t.id_stato = st_t.id_stato
+            WHERE p.attivo = 1
+              AND (p.archiviato = 0 OR p.archiviato IS NULL)
+        """
+        params = []
+        if user.ruolo != "ADMIN":
+            sql += " AND p.owner_user_id = %s"
+            params.append(user.id_utente)
+        sql += " ORDER BY p.nome_progetto, t.id_task"
+
+        cur.execute(sql, tuple(params) if params else None)
+        rows = cur.fetchall()
+
+    return {"columns": columns, "rows": [list(row) for row in rows]}
+
+
 @router.get("/archivio/progetti")
 @with_api_logging("archivio.progetti.list")
 @require_permission(PERM_APP_GESTIONE_OPEN)
@@ -104,6 +174,86 @@ def restore_archivio_progetto(
 
     conn.commit()
     return {"ok": True, "id_progetto": id_progetto}
+
+
+@router.get("/archivio/progetti/{id_progetto}/task")
+@with_api_logging("archivio.task.list")
+@require_permission(PERM_APP_GESTIONE_OPEN)
+def list_archivio_task(
+    id_progetto: int,
+    user: AuthUser = Depends(get_current_user),
+    conn: Connection = Depends(get_db_connection),
+):
+    with conn.cursor() as cur:
+        if user.ruolo == "ADMIN":
+            cur.execute(
+                """
+                SELECT id_progetto
+                FROM progetti
+                WHERE id_progetto = %s
+                  AND attivo = 1
+                  AND archiviato = 1
+                LIMIT 1
+                """,
+                (id_progetto,),
+            )
+            task_owner_filter = ""
+            params = [id_progetto]
+        else:
+            cur.execute(
+                """
+                SELECT id_progetto
+                FROM progetti
+                WHERE id_progetto = %s
+                  AND attivo = 1
+                  AND archiviato = 1
+                  AND owner_user_id = %s
+                LIMIT 1
+                """,
+                (id_progetto, user.id_utente),
+            )
+            task_owner_filter = " AND t.owner_user_id = %s"
+            params = [id_progetto, user.id_utente]
+
+        if cur.fetchone() is None:
+            raise HTTPException(status_code=403, detail="Progetto archivio non accessibile")
+
+        cur.execute(
+            """
+            SELECT
+                t.id_task,
+                t.titolo,
+                t.tipo_task,
+                t.data_fine,
+                t.percentuale_avanzamento,
+                t.completato,
+                t.id_parent,
+                t.data_inserimento
+            FROM task t
+            WHERE t.id_progetto = %s
+              AND t.attivo = 1
+            """
+            + task_owner_filter
+            + """
+            ORDER BY t.data_inserimento ASC, t.id_task ASC
+            """,
+            tuple(params),
+        )
+        rows = cur.fetchall()
+
+    return [
+        {
+            "id_task": r[0],
+            "titolo": r[1],
+            "tipo_task": r[2],
+            "data_fine": r[3],
+            "percentuale_avanzamento": r[4],
+            "completato": r[5],
+            "id_parent": r[6],
+            "data_inserimento": r[7],
+        }
+        for r in rows
+    ]
 
 
 @router.get("/task/{id_task}/allegati")

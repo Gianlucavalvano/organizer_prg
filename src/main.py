@@ -45,6 +45,7 @@ def main(page: ft.Page):
 
     orig_leggi_progetti_archiviati = db.leggi_progetti_archiviati
     orig_ripristina_progetto_db = db.ripristina_progetto_db
+    orig_leggi_tasks_archivio_readonly = getattr(db, "leggi_tasks_archivio_readonly", lambda id_progetto: [])
 
     orig_conta_allegati_task = db.conta_allegati_task
     orig_leggi_allegati_task = db.leggi_allegati_task
@@ -551,6 +552,35 @@ def main(page: ft.Page):
             return orig_ripristina_progetto_db(id_progetto)
 
 
+
+    def _api_leggi_tasks_archivio_readonly(id_progetto):
+        if not current_token:
+            return orig_leggi_tasks_archivio_readonly(id_progetto)
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                res = client.get(
+                    f"{api_base_url}/archivio/progetti/{id_progetto}/task",
+                    headers=_api_headers(),
+                )
+            if res.status_code != 200:
+                return orig_leggi_tasks_archivio_readonly(id_progetto)
+            rows = res.json()
+            return [
+                (
+                    r.get("id_task"),
+                    r.get("titolo") or "",
+                    int(r.get("tipo_task") or 1),
+                    r.get("data_fine") or "",
+                    int(r.get("percentuale_avanzamento") or 0),
+                    1 if r.get("completato") else 0,
+                    r.get("id_parent"),
+                )
+                for r in rows
+            ]
+        except Exception:
+            return orig_leggi_tasks_archivio_readonly(id_progetto)
+
+
     _downloaded_attachments = {}
 
     def _api_leggi_allegati_task(id_task):
@@ -1014,6 +1044,7 @@ def main(page: ft.Page):
 
         db.leggi_progetti_archiviati = _api_leggi_progetti_archiviati
         db.ripristina_progetto_db = _api_ripristina_progetto_db
+        db.leggi_tasks_archivio_readonly = _api_leggi_tasks_archivio_readonly
 
         db.conta_allegati_task = _api_conta_allegati_task
         db.leggi_allegati_task = _api_leggi_allegati_task
@@ -1063,6 +1094,7 @@ def main(page: ft.Page):
 
         db.leggi_progetti_archiviati = orig_leggi_progetti_archiviati
         db.ripristina_progetto_db = orig_ripristina_progetto_db
+        db.leggi_tasks_archivio_readonly = orig_leggi_tasks_archivio_readonly
 
         db.conta_allegati_task = orig_conta_allegati_task
         db.leggi_allegati_task = orig_leggi_allegati_task
@@ -1119,7 +1151,8 @@ def main(page: ft.Page):
                 page.update()
                 return
 
-            current_user = user
+            current_user = dict(user)
+            current_user["access_token"] = token
             current_token = token
             current_apps = _api_apps_me(token)
             db.set_current_user(user)
