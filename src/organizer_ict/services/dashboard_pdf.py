@@ -7,9 +7,12 @@ from reportlab.graphics.charts.piecharts import Pie
 from reportlab.graphics import renderPDF
 from datetime import datetime
 import io
-from organizer_ict.db import handler as database
 import os
+
+import httpx
+
 from . import stampa_api
+from organizer_ict.config import get_api_base_url
 
 
 # --- CONFIGURAZIONE COORDINATE CARTINA ---
@@ -24,7 +27,29 @@ COORD_STATI = {
     # Aggiungi qui altri stati...
 }
 
-def genera_dashboard_in_memoria():
+def _richiedi_dati_dashboard_da_api(current_user: dict | None) -> dict:
+    token = (current_user or {}).get("access_token")
+    if not token:
+        raise RuntimeError("Token API non disponibile: esci e rientra nell'applicazione.")
+
+    api_base_url = get_api_base_url()
+    with httpx.Client(timeout=30.0) as client:
+        res = client.get(
+            f"{api_base_url}/reports/dashboard",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    if res.status_code != 200:
+        try:
+            detail = res.json().get("detail")
+        except Exception:
+            detail = res.text
+        raise RuntimeError(f"Errore API dashboard: {detail}")
+
+    return res.json() or {}
+
+
+def genera_dashboard_in_memoria(current_user: dict | None = None):
     # 1. SETUP
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
@@ -53,23 +78,11 @@ def genera_dashboard_in_memoria():
         c.setFillColor(colors.black)
         c.drawCentredString(10*cm, 10*cm, "Manca immagine src/assets/europa.png")
 
-    # --- QUERY DATI GEOGRAFICI ---
-    # Conta task attivi raggruppati per nome stato del progetto
-    conn = database.connetti()
-    cur = conn.cursor()
-    owner_filter_t, owner_params_t = database.owner_filter_sql("t")
-    query_map = """
-        SELECT s.nome_stato, COUNT(t.id_task)
-    FROM task t
-    JOIN progetti p ON t.id_progetto = p.id_progetto
-        -- PRIMA ERA: LEFT JOIN tab_stati s ON p.id_stato = s.id_stato (Guardava il progetto)
-        LEFT JOIN tab_stati s ON t.id_stato = s.id_stato -- ORA: Guarda il Task
-    WHERE t.attivo = 1 AND p.attivo = 1
-    """ + owner_filter_t + """
-    GROUP BY s.nome_stato
-    """
-    cur.execute(query_map, owner_params_t if owner_filter_t else None)
-    dati_geo = cur.fetchall()
+    dati_dashboard = _richiedi_dati_dashboard_da_api(current_user)
+    dati_geo = [
+        (row.get("stato") or "Non Definito", row.get("count") or 0)
+        for row in dati_dashboard.get("geo", [])
+    ]
 
     # --- POSIZIONAMENTO BOLLINI SULLA CARTINA ---
     dati_non_mappati = [] # Qui finiscono gli stati senza coordinate o "Tutti"
@@ -117,22 +130,14 @@ def genera_dashboard_in_memoria():
         c.drawString(x_colonna, y_curr, "- Nessun dato extra -")
     else:
         for stato, count in dati_non_mappati:
-            c.drawString(x_colonna, y_curr, f"â€¢ {stato}: {count} Task")
+            c.drawString(x_colonna, y_curr, f"- {stato}: {count} Task")
             y_curr -= 0.6*cm
 
     # --- SEZIONE 3: GRAFICO A TORTA TASK (Aperti vs Chiusi) ---
-    # Query per totali
-    cur.execute("""
-        SELECT 
-            SUM(CASE WHEN completato = 1 THEN 1 ELSE 0 END) as chiusi,
-            SUM(CASE WHEN completato = 0 THEN 1 ELSE 0 END) as aperti
-        FROM task t WHERE t.attivo = 1
-    """ + owner_filter_t, owner_params_t if owner_filter_t else None)
-    res = cur.fetchone()
-    chiusi = res[0] or 0
-    aperti = res[1] or 0
-    totale = chiusi + aperti
-    conn.close()
+    totali = dati_dashboard.get("totali", {})
+    chiusi = totali.get("chiusi") or 0
+    aperti = totali.get("aperti") or 0
+    totale = totali.get("totale") or (chiusi + aperti)
 
     # Disegniamo il grafico solo se ci sono dati
     if totale > 0:
@@ -178,4 +183,4 @@ if __name__ == "__main__":
     # Questo codice viene eseguito SOLO se lanci il file direttamente
     print("Avvio generazione Dashboard di test...")
     genera_dashboard()
-    print("Fatto! Controlla se si Ã¨ aperta la finestra di salvataggio.")
+    print("Fatto! Controlla se si ÃƒÂ¨ aperta la finestra di salvataggio.")

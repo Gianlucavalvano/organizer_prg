@@ -6,10 +6,46 @@ from reportlab.lib.units import cm
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from datetime import datetime
 import io
-from organizer_ict.db import handler as database
 import os
+import httpx
 from . import stampa_api
-from organizer_ict.config import get_logo_path
+from organizer_ict.config import get_api_base_url, get_logo_path
+
+
+def _richiedi_dati_lista_da_api(current_user: dict | None) -> list[tuple]:
+    token = (current_user or {}).get("access_token")
+    if not token:
+        raise RuntimeError("Token API non disponibile: esci e rientra nell'applicazione.")
+
+    api_base_url = get_api_base_url()
+    with httpx.Client(timeout=30.0) as client:
+        res = client.get(
+            f"{api_base_url}/reports/lista-progetti",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    if res.status_code != 200:
+        try:
+            detail = res.json().get("detail")
+        except Exception:
+            detail = res.text
+        raise RuntimeError(f"Errore API stampa lista progetti: {detail}")
+
+    rows = res.json() or []
+    return [
+        (
+            row.get("nome_progetto", ""),
+            row.get("stato", ""),
+            row.get("percentuale_avanzamento") or 0,
+            row.get("resp1", ""),
+            row.get("resp2", ""),
+            row.get("num_tasks") or 0,
+            row.get("data_chiusura", ""),
+            row.get("ticket_interno", ""),
+            row.get("ticket_esterno", ""),
+        )
+        for row in rows
+    ]
 
 # --- UTILITA' ---
 def formatta_data(data_str):
@@ -70,7 +106,7 @@ def disegna_cornice(canvas, doc):
     canvas.drawRightString(width-1.5*cm, 1.3*cm, f"Stampato il: {data_ora} - Pagina {doc.page}")
     canvas.restoreState()
 
-def genera_lista_in_memoria():
+def genera_lista_in_memoria(current_user: dict | None = None):
     # 1. SETUP
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -94,7 +130,7 @@ def genera_lista_in_memoria():
     elements.append(Paragraph("Lista Progetti in Corso", style_titolo))
 
     # 2. RECUPERO DATI
-    dati_db = database.leggi_dati_stampa_lista()
+    dati_db = _richiedi_dati_lista_da_api(current_user)
     
     if not dati_db:
         elements.append(Paragraph("Nessun progetto attivo trovato.", styles['Normal']))

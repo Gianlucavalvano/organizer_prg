@@ -2,13 +2,14 @@ import io
 from datetime import datetime
 
 import flet as ft
+import httpx
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from organizer_ict.db import handler as db
 from . import stampa_api
+from organizer_ict.config import get_api_base_url
 
 
 def _to_iso(date_value):
@@ -27,39 +28,37 @@ def _validate_dates(data_dal, data_al):
         return False
 
 
-def _leggi_task_intervallo(data_dal, data_al):
-    conn = db.connetti()
-    cur = conn.cursor()
-    owner_filter_t, owner_params_t = db.owner_filter_sql("t")
-    cur.execute(
-        f"""
-        SELECT
-            COALESCE(p.nome_progetto, '-') AS nome_progetto,
-            COALESCE(t.titolo, '-') AS titolo_task,
-            COALESCE(r.cognome || ' ' || r.nome, 'Non assegnato') AS risorsa,
-            COALESCE(substr(t.data_inserimento, 1, 10), '-') AS data_inserimento,
-            COALESCE(substr(t.data_completato, 1, 10), '-') AS data_completato
-        FROM task t
-        LEFT JOIN progetti p ON t.id_progetto = p.id_progetto
-        LEFT JOIN risorse r ON t.id_risorsa = r.id_risorsa
-        WHERE t.attivo = 1
-          {owner_filter_t}
-          AND (
-                (t.data_inserimento IS NOT NULL
-                 AND to_date(substr(t.data_inserimento, 1, 10), 'YYYY-MM-DD') >= %s::date
-                 AND to_date(substr(t.data_inserimento, 1, 10), 'YYYY-MM-DD') <= %s::date)
-             OR (t.data_completato IS NOT NULL
-                 AND to_date(substr(t.data_completato, 1, 10), 'YYYY-MM-DD') >= %s::date
-                 AND to_date(substr(t.data_completato, 1, 10), 'YYYY-MM-DD') <= %s::date)
-          )
-        ORDER BY to_date(substr(t.data_inserimento, 1, 10), 'YYYY-MM-DD') ASC, p.nome_progetto ASC
-        """,
-        ((owner_params_t + (data_dal, data_al, data_dal, data_al)) if owner_filter_t else (data_dal, data_al, data_dal, data_al)),
-    )
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+def _leggi_task_intervallo(data_dal, data_al, current_user: dict | None = None):
+    token = (current_user or {}).get("access_token")
+    if not token:
+        raise RuntimeError("Token API non disponibile: esci e rientra nell'applicazione.")
 
+    api_base_url = get_api_base_url()
+    with httpx.Client(timeout=30.0) as client:
+        res = client.get(
+            f"{api_base_url}/reports/task-intervallo",
+            params={"data_dal": data_dal, "data_al": data_al},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    if res.status_code != 200:
+        try:
+            detail = res.json().get("detail")
+        except Exception:
+            detail = res.text
+        raise RuntimeError(f"Errore API task intervallo: {detail}")
+
+    rows = res.json() or []
+    return [
+        (
+            row.get("nome_progetto", "-"),
+            row.get("titolo_task", "-"),
+            row.get("risorsa", "Non assegnato"),
+            row.get("data_inserimento", "-"),
+            row.get("data_completato", "-"),
+        )
+        for row in rows
+    ]
 
 def _genera_pdf_intervallo(data_dal, data_al, rows):
     buffer = io.BytesIO()
@@ -141,7 +140,7 @@ def _genera_pdf_intervallo(data_dal, data_al, rows):
     return buffer.getvalue()
 
 
-def apri_dialog_task_intervallo(page: ft.Page):
+def apri_dialog_task_intervallo(page: ft.Page, current_user: dict | None = None):
     t_dal = ft.TextField(label="Data dal", hint_text="YYYY-MM-DD", expand=True, read_only=True)
     t_al = ft.TextField(label="Data al", hint_text="YYYY-MM-DD", expand=True, read_only=True)
     lbl_err = ft.Text("", color="red")
@@ -191,7 +190,7 @@ def apri_dialog_task_intervallo(page: ft.Page):
             lbl_err.update()
             return
 
-        rows = _leggi_task_intervallo(data_dal, data_al)
+        rows = _leggi_task_intervallo(data_dal, data_al, current_user=current_user)
         pdf_bytes = _genera_pdf_intervallo(data_dal, data_al, rows)
         stampa_api.apri_preview_flow(
             page,

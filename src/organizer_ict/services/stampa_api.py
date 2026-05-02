@@ -46,13 +46,17 @@ def genera_pdf(tipo: str, **kwargs):
     if tipo_norm == "lista":
         from . import lista_progetti_pdf
 
-        pdf_bytes = lista_progetti_pdf.genera_lista_in_memoria()
+        pdf_bytes = lista_progetti_pdf.genera_lista_in_memoria(
+            current_user=kwargs.get("current_user")
+        )
         return pdf_bytes, _nome_default_lista(), "Lista Progetti"
 
     if tipo_norm == "dashboard":
         from . import dashboard_pdf
 
-        pdf_bytes = dashboard_pdf.genera_dashboard_in_memoria()
+        pdf_bytes = dashboard_pdf.genera_dashboard_in_memoria(
+            current_user=kwargs.get("current_user")
+        )
         return pdf_bytes, _nome_default_dashboard(), "Dashboard"
 
     raise ValueError(f"Tipo stampa non supportato: {tipo}")

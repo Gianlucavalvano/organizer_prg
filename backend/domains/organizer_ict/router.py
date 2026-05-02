@@ -13,11 +13,54 @@ from backend.domains.progetti_task.service import assert_project_access, assert_
 from backend.settings import get_attachments_storage_root
 
 from .schemas import NoteCreateIn, NoteTaskFromIn, RisorsaIn, RuoloIn
+from .report_service import get_attivita_scadute_report, get_dashboard_report, get_lista_progetti_report, get_task_intervallo_report
 from .service import attachment_task_dir, resolve_attachment_abs, safe_attachment_filename
 
 PERM_APP_GESTIONE_OPEN = "APP_GESTIONE_OPEN"
 
 router = APIRouter(tags=["organizer-ict"])
+
+
+@router.get("/reports/lista-progetti")
+@with_api_logging("reports.lista_progetti")
+@require_permission(PERM_APP_GESTIONE_OPEN)
+def report_lista_progetti(
+    user: AuthUser = Depends(get_current_user),
+    conn: Connection = Depends(get_db_connection),
+):
+    return get_lista_progetti_report(conn, user)
+
+
+@router.get("/reports/dashboard")
+@with_api_logging("reports.dashboard")
+@require_permission(PERM_APP_GESTIONE_OPEN)
+def report_dashboard(
+    user: AuthUser = Depends(get_current_user),
+    conn: Connection = Depends(get_db_connection),
+):
+    return get_dashboard_report(conn, user)
+
+
+@router.get("/reports/task-intervallo")
+@with_api_logging("reports.task_intervallo")
+@require_permission(PERM_APP_GESTIONE_OPEN)
+def report_task_intervallo(
+    data_dal: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    data_al: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    user: AuthUser = Depends(get_current_user),
+    conn: Connection = Depends(get_db_connection),
+):
+    return get_task_intervallo_report(conn, user, data_dal, data_al)
+
+
+@router.get("/reports/attivita-scadute")
+@with_api_logging("reports.attivita_scadute")
+@require_permission(PERM_APP_GESTIONE_OPEN)
+def report_attivita_scadute(
+    user: AuthUser = Depends(get_current_user),
+    conn: Connection = Depends(get_db_connection),
+):
+    return get_attivita_scadute_report(conn, user)
 
 
 @router.get("/reports/export/progetti-task")

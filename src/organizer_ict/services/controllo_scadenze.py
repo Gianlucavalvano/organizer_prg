@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 
 import flet as ft
+import httpx
 
-from organizer_ict.db import handler as db
+from organizer_ict.config import get_api_base_url
 
 
 def _short_text(value: str, max_len: int = 50) -> str:
@@ -14,12 +15,45 @@ def _short_text(value: str, max_len: int = 50) -> str:
     return text[: max_len - 3] + "..."
 
 
+def _leggi_attivita_scadute_da_api(current_user: dict | None) -> list[tuple]:
+    token = (current_user or {}).get("access_token")
+    if not token:
+        raise RuntimeError("Token API non disponibile: esci e rientra nell'applicazione.")
+
+    api_base_url = get_api_base_url()
+    with httpx.Client(timeout=30.0) as client:
+        res = client.get(
+            f"{api_base_url}/reports/attivita-scadute",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    if res.status_code != 200:
+        try:
+            detail = res.json().get("detail")
+        except Exception:
+            detail = res.text
+        raise RuntimeError(f"Errore API attivita scadute: {detail}")
+
+    rows = res.json() or []
+    return [
+        (
+            row.get("tipo"),
+            row.get("id_progetto"),
+            row.get("id_task"),
+            row.get("descrizione", "-"),
+            row.get("data_scadenza", "-"),
+        )
+        for row in rows
+    ]
+
+
 def apri_dialog_attivita_scadute(
     page: ft.Page,
     apri_progetto_callback,
     apri_task_callback,
+    current_user: dict | None = None,
 ):
-    rows = db.leggi_attivita_scadute() or []
+    rows = _leggi_attivita_scadute_da_api(current_user) or []
 
     table_rows = []
     for tipo, id_progetto, id_task, descrizione, data_scadenza in rows:
@@ -89,7 +123,7 @@ def apri_dialog_attivita_scadute(
             content=ft.Column(
                 [
                     ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, size=44, color=ft.Colors.GREEN_700),
-                    ft.Text("Nessuna attività scaduta trovata.", color=ft.Colors.BLUE_GREY_700),
+                    ft.Text("Nessuna attivitÃ  scaduta trovata.", color=ft.Colors.BLUE_GREY_700),
                 ],
                 tight=True,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -98,7 +132,7 @@ def apri_dialog_attivita_scadute(
 
     dialog = ft.AlertDialog(
         modal=False,
-        title=ft.Text("Attività Scadute"),
+        title=ft.Text("AttivitÃ  Scadute"),
         content=ft.Container(
             width=1040,
             height=520,

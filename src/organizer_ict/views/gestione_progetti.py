@@ -161,7 +161,7 @@ class GestioneProgettiController:
     @traccia_click("global.stampa_lista")
     async def click_stampa_lista(self, _):
         try:
-            await stampa_api.stampa(self.page, "lista")
+            await stampa_api.stampa(self.page, "lista", current_user=self.current_user)
         except Exception as err:
             self.page.snack_bar = ft.SnackBar(ft.Text(f"Errore stampa lista: {str(err)}"), bgcolor="red")
             self.page.snack_bar.open = True
@@ -170,7 +170,7 @@ class GestioneProgettiController:
     @traccia_click("global.stampa_dashboard")
     async def click_stampa_dashboard(self, _):
         try:
-            await stampa_api.stampa(self.page, "dashboard")
+            await stampa_api.stampa(self.page, "dashboard", current_user=self.current_user)
         except Exception as err:
             self.page.snack_bar = ft.SnackBar(ft.Text(f"Errore stampa dashboard: {str(err)}"), bgcolor="red")
             self.page.snack_bar.open = True
@@ -209,6 +209,7 @@ class GestioneProgettiController:
             self.page,
             apri_progetto_callback=self.apri_dettaglio_progetto,
             apri_task_callback=self.apri_dettaglio_task,
+            current_user=self.current_user,
         )
 
     def click_toggle_progetto(self, _, id_progetto, stato_chiuso):
@@ -735,7 +736,7 @@ class GestioneProgettiController:
                         "Task in Intervallo",
                         icon=ft.Icons.DATE_RANGE,
                         style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
-                        on_click=lambda e: report_task_intervallo.apri_dialog_task_intervallo(self.page),
+                        on_click=lambda e: report_task_intervallo.apri_dialog_task_intervallo(self.page, self.current_user),
                     ),
                     ft.FilledButton(
                         "Controlla Attività Scadute",
