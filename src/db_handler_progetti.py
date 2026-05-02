@@ -143,6 +143,8 @@ def inizializza_db():
             nome_progetto TEXT NOT NULL,
             note TEXT,
             data_inserimento TEXT,
+            ticket_interno VARCHAR(20),
+            ticket_esterno VARCHAR(20),
             id_stato INTEGER DEFAULT 1,
             percentuale_avanzamento INTEGER DEFAULT 0,
             attivo INTEGER DEFAULT 1
@@ -166,6 +168,8 @@ def inizializza_db():
             id_ruolo INTEGER,
             data_inserimento TEXT,
             data_completato TEXT,
+            ticket_interno VARCHAR(20),
+            ticket_esterno VARCHAR(20),
             attivo INTEGER DEFAULT 1
         )
     """)
@@ -481,6 +485,8 @@ def inizializza_db():
     verifica_e_aggiorna_colonna("progetti", "archiviato", "INTEGER DEFAULT 0")
     verifica_e_aggiorna_colonna("progetti", "data_archiviazione", "TEXT")
     verifica_e_aggiorna_colonna("progetti", "owner_user_id", "INTEGER")
+    verifica_e_aggiorna_colonna("progetti", "ticket_interno", "VARCHAR(20)")
+    verifica_e_aggiorna_colonna("progetti", "ticket_esterno", "VARCHAR(20)")
 
     # TASK
     verifica_e_aggiorna_colonna("task", "data_inizio", "TEXT")
@@ -498,6 +504,8 @@ def inizializza_db():
     verifica_e_aggiorna_colonna("task", "data_archiviazione", "TEXT")
     verifica_e_aggiorna_colonna("task", "id_parent", "INTEGER")
     verifica_e_aggiorna_colonna("task", "owner_user_id", "INTEGER")
+    verifica_e_aggiorna_colonna("task", "ticket_interno", "VARCHAR(20)")
+    verifica_e_aggiorna_colonna("task", "ticket_esterno", "VARCHAR(20)")
 
     # ALLEGATI TASK
     verifica_e_aggiorna_colonna("task_allegati", "attivo", "INTEGER DEFAULT 1")
@@ -527,8 +535,8 @@ def aggiungi_progetto(nome, note, stato_id):
     data_ins = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     c.execute(
         """
-        INSERT INTO progetti (nome_progetto, note, data_inserimento, id_stato, attivo, ordine_manuale, owner_user_id)
-        VALUES (?, ?, ?, ?, 1, ?, ?)
+        INSERT INTO progetti (nome_progetto, note, data_inserimento, id_stato, attivo, ordine_manuale, owner_user_id, ticket_interno, ticket_esterno)
+        VALUES (?, ?, ?, ?, 1, ?, ?, '', '')
         """,
         (nome, note, data_ins, stato_id, next_ordine, uid),
     )
@@ -643,7 +651,9 @@ def leggi_progetto_per_modifica(id_progetto):
             id_ruolo_resp1, 
             id_resp2, 
             id_ruolo_resp2,
-            data1_checkpoint
+            data1_checkpoint,
+            COALESCE(ticket_interno, '') AS ticket_interno,
+            COALESCE(ticket_esterno, '') AS ticket_esterno
         FROM progetti 
         WHERE id_progetto = ?
     """
@@ -751,7 +761,7 @@ def toggle_chiusura_progetto(id_progetto, stato_attuale_chiuso):
 #    conn.commit()
 #    conn.close()
 #-----------------------------------------nuova veriosne
-def modifica_progetto(id_proj, nome, note, id_stato, percentuale, id_r1, id_ru1, id_r2, id_ru2, data1_checkpoint):
+def modifica_progetto(id_proj, nome, note, id_stato, percentuale, id_r1, id_ru1, id_r2, id_ru2, data1_checkpoint, ticket_interno="", ticket_esterno=""):
     """Aggiorna nome, note, stato (Paese) e percentuale manuale del progetto."""
     uid = _current_user_id()
     owner_filter = " AND owner_user_id = ?" if (uid is not None and not _is_admin()) else ""
@@ -765,7 +775,9 @@ def modifica_progetto(id_proj, nome, note, id_stato, percentuale, id_r1, id_ru1,
             id_ruolo_resp1 = ?,
             id_resp2 = ?,
             id_ruolo_resp2 = ?,
-            data1_checkpoint = ?
+            data1_checkpoint = ?,
+            ticket_interno = ?,
+            ticket_esterno = ?
         WHERE id_progetto = ?{owner_filter}
     """
     try:
@@ -781,6 +793,8 @@ def modifica_progetto(id_proj, nome, note, id_stato, percentuale, id_r1, id_ru1,
             id_r2,
             id_ru2,
             data1_checkpoint,
+            (ticket_interno or "").strip()[:20],
+            (ticket_esterno or "").strip()[:20],
             id_proj,
         )
         if owner_filter:
@@ -1286,7 +1300,9 @@ def leggi_dettaglio_task(id_task):
         SELECT 
             t.titolo, t.data_inizio, t.data_fine, t.percentuale_avanzamento, 
             t.tipo_task, t.id_stato, t.completato, t.data_inserimento,
-            t.id_risorsa, t.id_ruolo
+            t.id_risorsa, t.id_ruolo,
+            COALESCE(t.ticket_interno, '') AS ticket_interno,
+            COALESCE(t.ticket_esterno, '') AS ticket_esterno
         FROM task t 
         WHERE t.id_task = ?{owner_filter}
         order by t.data_inserimento
@@ -1309,6 +1325,8 @@ def salva_task_complesso(id_task, id_progetto, dati, assegnazione):
     perc = dati.get("perc")
     tipo = dati.get("tipo")
     stato = dati.get("stato")
+    ticket_interno = (dati.get("ticket_interno") or "").strip()[:20]
+    ticket_esterno = (dati.get("ticket_esterno") or "").strip()[:20]
     
     # Estrazione risorsa dalla tupla assegnazione (id_ris, id_ruolo)
     id_ris = None
@@ -1329,10 +1347,11 @@ def salva_task_complesso(id_task, id_progetto, dati, assegnazione):
                     titolo=?, data_inizio=?, data_fine=?, 
                     percentuale_avanzamento=?, tipo_task=?, id_stato=?,
                     completato = CASE WHEN ? = 100 THEN 1 ELSE 0 END,
-                    id_risorsa = ?, id_ruolo = ?
+                    id_risorsa = ?, id_ruolo = ?,
+                    ticket_interno = ?, ticket_esterno = ?
                 WHERE id_task=?{owner_filter}
             """
-            params = (titolo, d_ini, d_fine, perc, tipo, stato, perc, id_ris, id_ruo, id_task)
+            params = (titolo, d_ini, d_fine, perc, tipo, stato, perc, id_ris, id_ruo, ticket_interno, ticket_esterno, id_task)
             if owner_filter:
                 params = params + (uid,)
             c.execute(sql, params)
@@ -1342,10 +1361,10 @@ def salva_task_complesso(id_task, id_progetto, dati, assegnazione):
                 INSERT INTO task (
                     id_progetto, titolo, data_inizio, data_fine, 
                     percentuale_avanzamento, tipo_task, id_stato, 
-                    completato, data_inserimento, attivo, id_risorsa, id_ruolo, owner_user_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+                    completato, data_inserimento, attivo, id_risorsa, id_ruolo, owner_user_id, ticket_interno, ticket_esterno
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
             """
-            c.execute(sql, (id_progetto, titolo, d_ini, d_fine, perc, tipo, stato, completato, curr_date, id_ris, id_ruo, uid))
+            c.execute(sql, (id_progetto, titolo, d_ini, d_fine, perc, tipo, stato, completato, curr_date, id_ris, id_ruo, uid, ticket_interno, ticket_esterno))
         
         conn.commit()
         return True
@@ -1618,7 +1637,9 @@ def leggi_dati_stampa_lista():
                   AND t.attivo = 1
                   {("AND t.owner_user_id = ?" if owner_filter else "")}
             ) as num_tasks,
-            p.data_chiusura
+            p.data_chiusura,
+            COALESCE(p.ticket_interno, '') AS ticket_interno,
+            COALESCE(p.ticket_esterno, '') AS ticket_esterno
         FROM progetti p
         LEFT JOIN tab_stati s ON p.id_stato = s.id_stato
         LEFT JOIN risorse r1 ON p.id_resp1 = r1.id_risorsa

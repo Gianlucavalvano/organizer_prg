@@ -703,6 +703,8 @@ def main(page: ft.Page):
                 r.get("data_completato") or "",
                 r.get("id_risorsa"),
                 r.get("id_ruolo"),
+                r.get("ticket_interno") or "",
+                r.get("ticket_esterno") or "",
             )
         except Exception:
             return orig_leggi_dettaglio_task(id_task)
@@ -721,6 +723,8 @@ def main(page: ft.Page):
             "id_stato": int(dati.get("stato") or 1),
             "id_risorsa": int(id_ris) if id_ris else None,
             "id_ruolo": int(id_ruo) if id_ruo else None,
+            "ticket_interno": (dati.get("ticket_interno") or "").strip()[:20],
+            "ticket_esterno": (dati.get("ticket_esterno") or "").strip()[:20],
         }
         try:
             with httpx.Client(timeout=10.0) as client:

@@ -24,7 +24,15 @@ router = APIRouter(tags=["progetti-task"])
 def ensure_progetti_data_inserimento(conn: Connection):
     with conn.cursor() as cur:
         cur.execute("ALTER TABLE progetti ADD COLUMN IF NOT EXISTS data_inserimento TEXT")
+        cur.execute("ALTER TABLE progetti ADD COLUMN IF NOT EXISTS ticket_interno VARCHAR(20)")
+        cur.execute("ALTER TABLE progetti ADD COLUMN IF NOT EXISTS ticket_esterno VARCHAR(20)")
+        cur.execute("ALTER TABLE task ADD COLUMN IF NOT EXISTS ticket_interno VARCHAR(20)")
+        cur.execute("ALTER TABLE task ADD COLUMN IF NOT EXISTS ticket_esterno VARCHAR(20)")
     conn.commit()
+
+
+def _ticket(value: str | None) -> str:
+    return (value or "").strip()[:20]
 
 
 @router.get("/progetti")
@@ -46,7 +54,9 @@ def list_progetti(
             p.attivo,
             COALESCE(p.archiviato, 0) AS archiviato,
             p.data_chiusura,
-            p.owner_user_id
+            p.owner_user_id,
+            COALESCE(p.ticket_interno, '') AS ticket_interno,
+            COALESCE(p.ticket_esterno, '') AS ticket_esterno
         FROM progetti p
         WHERE p.attivo = 1
           AND (p.archiviato = 0 OR p.archiviato IS NULL)
@@ -73,6 +83,8 @@ def list_progetti(
             "archiviato": r[7],
             "data_chiusura": r[8],
             "owner_user_id": r[9],
+            "ticket_interno": r[10],
+            "ticket_esterno": r[11],
         }
         for r in rows
     ]
@@ -128,9 +140,11 @@ def create_progetto(
                 percentuale_avanzamento,
                 attivo,
                 ordine_manuale,
-                owner_user_id
+                owner_user_id,
+                ticket_interno,
+                ticket_esterno
             )
-            VALUES (%s, %s, %s, %s, %s, 1, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, 1, %s, %s, %s, %s)
             RETURNING id_progetto
             """,
             (
@@ -141,6 +155,8 @@ def create_progetto(
                 int(payload.percentuale_avanzamento or 0),
                 next_order,
                 owner_id,
+                _ticket(payload.ticket_interno),
+                _ticket(payload.ticket_esterno),
             ),
         )
         new_id = int(cur.fetchone()[0])
@@ -151,6 +167,8 @@ def create_progetto(
         "nome_progetto": nome,
         "data_inserimento": now_ts,
         "owner_user_id": owner_id,
+        "ticket_interno": _ticket(payload.ticket_interno),
+        "ticket_esterno": _ticket(payload.ticket_esterno),
     }
 
 @router.put("/progetti/{id_progetto}")
@@ -162,6 +180,7 @@ def update_progetto(
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
+    ensure_progetti_data_inserimento(conn)
     nome = (payload.nome_progetto or "").strip()
     if not nome:
         raise HTTPException(status_code=400, detail="nome_progetto obbligatorio")
@@ -174,7 +193,9 @@ def update_progetto(
             SET nome_progetto = %s,
                 note = %s,
                 id_stato = %s,
-                percentuale_avanzamento = %s
+                percentuale_avanzamento = %s,
+                ticket_interno = %s,
+                ticket_esterno = %s
             WHERE id_progetto = %s
             """,
             (
@@ -182,6 +203,8 @@ def update_progetto(
                 payload.note or "",
                 int(payload.id_stato or 1),
                 int(payload.percentuale_avanzamento or 0),
+                _ticket(payload.ticket_interno),
+                _ticket(payload.ticket_esterno),
                 id_progetto,
             ),
         )
@@ -251,7 +274,9 @@ def list_task(
             t.data_completato,
             t.data_inserimento,
             COALESCE(p.nome_progetto, '-') AS nome_progetto,
-            COALESCE(r.nome || ' ' || r.cognome, '') AS nome_risorsa
+            COALESCE(r.nome || ' ' || r.cognome, '') AS nome_risorsa,
+            COALESCE(t.ticket_interno, '') AS ticket_interno,
+            COALESCE(t.ticket_esterno, '') AS ticket_esterno
         FROM task t
         LEFT JOIN progetti p ON p.id_progetto = t.id_progetto
         LEFT JOIN risorse r ON r.id_risorsa = t.id_risorsa
@@ -291,6 +316,8 @@ def list_task(
             "data_inserimento": r[13],
             "nome_progetto": r[14],
             "nome_risorsa": r[15],
+            "ticket_interno": r[16],
+            "ticket_esterno": r[17],
         }
         for r in rows
     ]
@@ -304,6 +331,7 @@ def get_task(
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
+    ensure_progetti_data_inserimento(conn)
     with conn.cursor() as cur:
         assert_task_access(cur, user, id_task)
         cur.execute(
@@ -322,7 +350,9 @@ def get_task(
                 t.data_completato,
                 t.id_risorsa,
                 t.id_ruolo,
-                t.owner_user_id
+                t.owner_user_id,
+                COALESCE(t.ticket_interno, '') AS ticket_interno,
+                COALESCE(t.ticket_esterno, '') AS ticket_esterno
             FROM task t
             WHERE t.id_task = %s
               AND t.attivo = 1
@@ -350,6 +380,8 @@ def get_task(
         "id_risorsa": row[11],
         "id_ruolo": row[12],
         "owner_user_id": row[13],
+        "ticket_interno": row[14],
+        "ticket_esterno": row[15],
     }
 
 
@@ -361,6 +393,7 @@ def create_task(
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
+    ensure_progetti_data_inserimento(conn)
     titolo = (payload.titolo or "").strip()
     if not titolo:
         raise HTTPException(status_code=400, detail="titolo obbligatorio")
@@ -384,9 +417,11 @@ def create_task(
                 id_ruolo,
                 data_inserimento,
                 attivo,
-                owner_user_id
+                owner_user_id,
+                ticket_interno,
+                ticket_esterno
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, 0, %s, %s, %s, 1, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 0, %s, %s, %s, 1, %s, %s, %s)
             RETURNING id_task
             """,
             (
@@ -401,6 +436,8 @@ def create_task(
                 payload.id_ruolo,
                 now_ts,
                 user.id_utente,
+                _ticket(payload.ticket_interno),
+                _ticket(payload.ticket_esterno),
             ),
         )
         new_id = int(cur.fetchone()[0])
@@ -418,6 +455,7 @@ def update_task(
     user: AuthUser = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
 ):
+    ensure_progetti_data_inserimento(conn)
     titolo = (payload.titolo or "").strip()
     if not titolo:
         raise HTTPException(status_code=400, detail="titolo obbligatorio")
@@ -434,7 +472,9 @@ def update_task(
                 tipo_task = %s,
                 id_stato = %s,
                 id_risorsa = %s,
-                id_ruolo = %s
+                id_ruolo = %s,
+                ticket_interno = %s,
+                ticket_esterno = %s
             WHERE id_task = %s
             """,
             (
@@ -446,6 +486,8 @@ def update_task(
                 int(payload.id_stato or 1),
                 payload.id_risorsa,
                 payload.id_ruolo,
+                _ticket(payload.ticket_interno),
+                _ticket(payload.ticket_esterno),
                 id_task,
             ),
         )

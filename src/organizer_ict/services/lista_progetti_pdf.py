@@ -105,6 +105,8 @@ def genera_lista_in_memoria():
             Paragraph('Stato', style_th),
             Paragraph('Task', style_th),     
             Paragraph('Chiusura', style_th), # MODIFICATO: Data Chiusura Progetto
+            Paragraph('Ticket Int.', style_th),
+            Paragraph('Ticket Est.', style_th),
             Paragraph('%', style_th),
             Paragraph('Responsabile 1', style_th),
             Paragraph('Responsabile 2', style_th)
@@ -120,12 +122,16 @@ def genera_lista_in_memoria():
             # Nuovi Dati
             n_tasks = str(row[5])
             data_chiusura = formatta_data(row[6]) # Legge la data chiusura progetto
+            ticket_interno = str(row[7] or "").strip()
+            ticket_esterno = str(row[8] or "").strip()
 
             data_table.append([
                 Paragraph(nome, style_td),
                 Paragraph(stato, style_td_center),
                 Paragraph(n_tasks, style_td_center), # Num Task
                 Paragraph(data_chiusura, style_td_center), # Data Chiusura
+                Paragraph(ticket_interno, style_td_center),
+                Paragraph(ticket_esterno, style_td_center),
                 ProgressBar(perc, width=40, height=8),
                 Paragraph(resp1, style_td),
                 Paragraph(resp2, style_td)
@@ -133,7 +139,7 @@ def genera_lista_in_memoria():
 
         # 3. LARGHEZZE COLONNE RIMODULATE
         # Totale disponibile ~26.7cm
-        col_widths = [7.5*cm, 3*cm, 1.5*cm, 2.5*cm, 2.2*cm, 5*cm, 5*cm]
+        col_widths = [5.4*cm, 2.5*cm, 1.2*cm, 2.1*cm, 2.2*cm, 2.2*cm, 1.8*cm, 4.6*cm, 4.6*cm]
         
         t = Table(data_table, colWidths=col_widths, repeatRows=1)
         t.setStyle(TableStyle([

@@ -7,6 +7,8 @@ class ProgettoCreateIn(BaseModel):
     id_stato: int = 1
     percentuale_avanzamento: int = 0
     owner_user_id: int | None = None
+    ticket_interno: str | None = ""
+    ticket_esterno: str | None = ""
 
 
 class ProgettoUpdateIn(BaseModel):
@@ -14,6 +16,8 @@ class ProgettoUpdateIn(BaseModel):
     note: str | None = ""
     id_stato: int = 1
     percentuale_avanzamento: int = 0
+    ticket_interno: str | None = ""
+    ticket_esterno: str | None = ""
 
 
 class TaskCreateIn(BaseModel):
@@ -26,6 +30,8 @@ class TaskCreateIn(BaseModel):
     id_stato: int = 1
     id_risorsa: int | None = None
     id_ruolo: int | None = None
+    ticket_interno: str | None = ""
+    ticket_esterno: str | None = ""
 
 
 class TaskUpdateIn(BaseModel):
@@ -37,6 +43,8 @@ class TaskUpdateIn(BaseModel):
     id_stato: int = 1
     id_risorsa: int | None = None
     id_ruolo: int | None = None
+    ticket_interno: str | None = ""
+    ticket_esterno: str | None = ""
 
 
 class TaskCompleteIn(BaseModel):

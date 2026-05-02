@@ -94,7 +94,9 @@ def genera_pdf_progetto_in_memoria(pid, nome_progetto):
             p.percentuale_avanzamento,
             p.note,
             r1.nome, r1.cognome, ru1.nome_ruolo,
-            r2.nome, r2.cognome, ru2.nome_ruolo
+            r2.nome, r2.cognome, ru2.nome_ruolo,
+            COALESCE(p.ticket_interno, '') AS ticket_interno,
+            COALESCE(p.ticket_esterno, '') AS ticket_esterno
         FROM progetti p
         LEFT JOIN risorse r1 ON p.id_resp1 = r1.id_risorsa
         LEFT JOIN ruoli ru1 ON p.id_ruolo_resp1 = ru1.id_ruolo
@@ -125,6 +127,16 @@ def genera_pdf_progetto_in_memoria(pid, nome_progetto):
 
     if resp_rows:
         elements.append(Paragraph(" | ".join(resp_rows), styles['Heading4']))
+
+    ticket_interno = str(p_data[9] or "").strip()
+    ticket_esterno = str(p_data[10] or "").strip()
+    ticket_rows = []
+    if ticket_interno:
+        ticket_rows.append(f"Ticket interno: {ticket_interno}")
+    if ticket_esterno:
+        ticket_rows.append(f"Ticket esterno: {ticket_esterno}")
+    if ticket_rows:
+        elements.append(Paragraph(" | ".join(ticket_rows), styles['Heading4']))
 
     elements.append(Spacer(1, 15))
     

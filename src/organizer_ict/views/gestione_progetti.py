@@ -522,6 +522,8 @@ class GestioneProgettiController:
         dd_ruolo1,
         dd_resp2,
         dd_ruolo2,
+        t_ticket_interno,
+        t_ticket_esterno,
     ):
         nuovo_stato = int(dd_stato.value) if dd_stato.value else None
         nuova_perc = int(sl_perc.value)
@@ -531,6 +533,8 @@ class GestioneProgettiController:
         id_r2 = dd_resp2.value
         id_ru2 = dd_ruolo2.value
         data_checkpoint1 = (t_data_checkpoint1.value or "").strip() or None
+        ticket_interno = (t_ticket_interno.value or "").strip()[:20]
+        ticket_esterno = (t_ticket_esterno.value or "").strip()[:20]
 
         db.modifica_progetto(
             id_prog,
@@ -543,6 +547,8 @@ class GestioneProgettiController:
             id_r2,
             id_ru2,
             data_checkpoint1,
+            ticket_interno,
+            ticket_esterno,
         )
 
         self.chiudi_dialog(dialog)
@@ -563,6 +569,8 @@ class GestioneProgettiController:
         val_r2 = dati[6]
         val_ru2 = dati[7]
         val_checkpoint1 = dati[8]
+        val_ticket_interno = dati[9] if len(dati) > 9 else ""
+        val_ticket_esterno = dati[10] if len(dati) > 10 else ""
 
         lista_risorse = db.leggi_risorse_attive()
         lista_ruoli = db.leggi_ruoli_attivi()
@@ -579,6 +587,18 @@ class GestioneProgettiController:
             hint_text="YYYY-MM-DD",
             value=str(val_checkpoint1) if val_checkpoint1 else "",
             width=200,
+        )
+        t_ticket_interno = ft.TextField(
+            label="Ticket interno",
+            value=str(val_ticket_interno or ""),
+            hint_text="max 20 caratteri",
+            width=190,
+        )
+        t_ticket_esterno = ft.TextField(
+            label="Ticket esterno",
+            value=str(val_ticket_esterno or ""),
+            hint_text="max 20 caratteri",
+            width=190,
         )
 
         dd_resp1 = ft.Dropdown(
@@ -623,6 +643,7 @@ class GestioneProgettiController:
             [
                 t_nome,
                 t_note,
+                ft.Row([t_ticket_interno, t_ticket_esterno], spacing=10),
                 ft.Row(
                     [
                         t_data_checkpoint1,
@@ -674,6 +695,8 @@ class GestioneProgettiController:
                         dd_ruolo1,
                         dd_resp2,
                         dd_ruolo2,
+                        t_ticket_interno,
+                        t_ticket_esterno,
                     ),
                 ),
             ],

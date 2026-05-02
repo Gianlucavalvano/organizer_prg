@@ -202,6 +202,8 @@ def crea_vista_dettaglio_progetto(page: ft.Page, id_progetto: int, id_task_apert
         dd_risorsa,
         dd_ruolo,
         sl_perc,
+        t_ticket_interno,
+        t_ticket_esterno,
     ):
         if not t_titolo.value:
             t_titolo.error_text = "Campo obbligatorio"
@@ -239,6 +241,8 @@ def crea_vista_dettaglio_progetto(page: ft.Page, id_progetto: int, id_task_apert
             "perc": val_perc,
             "tipo": val_tipo,
             "stato": val_stato,
+            "ticket_interno": (t_ticket_interno.value or "").strip()[:20],
+            "ticket_esterno": (t_ticket_esterno.value or "").strip()[:20],
         }
 
         ok = db.salva_task_complesso(id_task_mod, id_progetto, dati_task, (id_ris, id_ruo))
@@ -273,6 +277,8 @@ def crea_vista_dettaglio_progetto(page: ft.Page, id_progetto: int, id_task_apert
         dd_stato = ft.Dropdown(label="Stato", options=opt_stati, value="1", expand=True)
         t_data_ini = ft.TextField(label="Data Inizio", hint_text="YYYY-MM-DD", expand=True)
         t_data_fine = ft.TextField(label="Data Fine", hint_text="YYYY-MM-DD", expand=True)
+        t_ticket_interno = ft.TextField(label="Ticket interno", hint_text="max 20 caratteri", expand=True)
+        t_ticket_esterno = ft.TextField(label="Ticket esterno", hint_text="max 20 caratteri", expand=True)
         dd_risorsa = ft.Dropdown(label="Risorsa Assegnata", options=opt_risorse)
         dd_ruolo = ft.Dropdown(label="Ruolo", options=opt_ruoli)
         sl_perc = ft.Slider(min=0, max=100, divisions=20, label="{value}%", value=0)
@@ -291,6 +297,8 @@ def crea_vista_dettaglio_progetto(page: ft.Page, id_progetto: int, id_task_apert
                     dd_risorsa.value = str(dati[8])
                 if dati[9]:
                     dd_ruolo.value = str(dati[9])
+                t_ticket_interno.value = str(dati[10] or "") if len(dati) > 10 else ""
+                t_ticket_esterno.value = str(dati[11] or "") if len(dati) > 11 else ""
 
         contenuto_form = ft.Column(
             scroll=ft.ScrollMode.AUTO,
@@ -299,6 +307,7 @@ def crea_vista_dettaglio_progetto(page: ft.Page, id_progetto: int, id_task_apert
                 ft.Text("Dati Principali", weight="bold", color="blue"),
                 lbl_errore,
                 t_titolo,
+                ft.Row([t_ticket_interno, t_ticket_esterno]),
                 ft.Row([dd_tipo, dd_stato]),
                 ft.Divider(),
                 ft.Text("Pianificazione", weight="bold", color="blue"),
@@ -352,6 +361,8 @@ def crea_vista_dettaglio_progetto(page: ft.Page, id_progetto: int, id_task_apert
                         dd_risorsa,
                         dd_ruolo,
                         sl_perc,
+                        t_ticket_interno,
+                        t_ticket_esterno,
                     ),
                     bgcolor="green",
                     color="white",

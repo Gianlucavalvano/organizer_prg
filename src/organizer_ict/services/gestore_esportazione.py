@@ -44,16 +44,24 @@ async def esporta_struttura_excel(page: ft.Page, current_user: dict | None = Non
         conn = database.connetti()
         cur = conn.cursor()
         cur.execute("ALTER TABLE progetti ADD COLUMN IF NOT EXISTS data_inserimento TEXT")
+        cur.execute("ALTER TABLE progetti ADD COLUMN IF NOT EXISTS ticket_interno VARCHAR(20)")
+        cur.execute("ALTER TABLE progetti ADD COLUMN IF NOT EXISTS ticket_esterno VARCHAR(20)")
+        cur.execute("ALTER TABLE task ADD COLUMN IF NOT EXISTS ticket_interno VARCHAR(20)")
+        cur.execute("ALTER TABLE task ADD COLUMN IF NOT EXISTS ticket_esterno VARCHAR(20)")
         conn.commit()
         owner_filter_p, owner_params_p = database.owner_filter_sql("p")
 
         query = f"""
         SELECT
             p.nome_progetto AS "PROGETTO",
+            COALESCE(p.ticket_interno, '') AS "TICKET INTERNO PROGETTO",
+            COALESCE(p.ticket_esterno, '') AS "TICKET ESTERNO PROGETTO",
             p.note AS "NOTE PROGETTO",
             p.data_inserimento AS "DATA INSERIMENTO PROGETTO",
             st_p.nome_stato AS "STATO PROGETTO",
             t.titolo AS "DESCRIZIONE TASK / NOTE",
+            COALESCE(t.ticket_interno, '') AS "TICKET INTERNO TASK",
+            COALESCE(t.ticket_esterno, '') AS "TICKET ESTERNO TASK",
             t.data_inizio AS "INIZIO TASK",
             t.data_fine AS "SCADENZA TASK",
             t.percentuale_avanzamento AS "% AVANZAMENTO",
